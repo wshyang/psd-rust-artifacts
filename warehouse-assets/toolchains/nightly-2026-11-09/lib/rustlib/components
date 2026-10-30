@@ -1,0 +1,5 @@
+rustc
+cargo
+rust-std-x86_64-unknown-linux-gnu
+llvm-tools-preview
+rust-src

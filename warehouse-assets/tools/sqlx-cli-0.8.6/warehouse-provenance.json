@@ -1,0 +1,6 @@
+{
+  "crate": "sqlx-cli",
+  "crate_sha256": "4ddab32a90a16a1c7c9265f410761341cbbc70b27fe7f9563f41ae5c2b4ef1c4",
+  "published_lock_sha256": "57b23d3bc7028689853254ead17585dc084c474077326e529d4c5a40b1cd3151",
+  "version": "0.8.6"
+}

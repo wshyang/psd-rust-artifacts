@@ -1,0 +1,383 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/).
+This project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html),
+with the exception that 0.x versions can break between minor versions.
+
+## [Unreleased]
+### Added
+### Changed
+### Fixed
+
+## [0.20.1] - 2026-11-09
+### Added
+- A new `Expr::has_descendant_or_self` method to easily traverse the Expr descendants to find an Expr matching a predicate. (#319)
+- Add a `RegexOptionsBuilder::optimize` / `RegexBuilder::optimize` flag to disable the expression-tree optimization pass (enabled by default), and rework it into two tiers: `optimize()` now takes an `OptimizeOptions` struct with a `find_not_empty` flag that skips only the KeepOut (`\K`) and trailing-lookahead rewrites, while the safe rewrites still apply — so `find_not_empty` patterns benefit from them instead of skipping the whole pass. The decision on whether to optimize is centralized on `RegexOptions::should_optimize` and forwarded to the prefilter helpers (`start_bytes`, `required_bytes`) so they analyze the same tree as the compile path. (#323)
+- Support control character escapes `\cX` and `\C-X` in Oniguruma mode, e.g. `\ca` matches `\x01` and `\c\\` matches `\x1C`, both inside and outside of character classes. Without Oniguruma mode they are still invalid escapes. (#320)
+### Changed
+### Fixed
+- Positive lookaheads are now atomic, as in Oniguruma and PCRE: once a lookahead has matched, a later failure no longer backtracks into it to try another way of matching it. For example `(?=x|(x))\1x` no longer matches `xx`. (#313)
+- A hard variable-length lookbehind no longer reuses the candidate start positions left behind by a previous lookbehind that matched (or by a negative lookbehind whose body matched), which gave wrong results such as `(b*)(?<!\1)c` matching `abc`, or hit the backtrack limit when a pattern had two such lookbehinds, like `(a*)b(?<=\1b)(c*)d(?<=\2d)`. (#314)
+- A repetition with a minimum count whose body can match an empty string (e.g. `(?:a|(?=b)){2,}`) could stop before reaching the minimum when it ran again at a position its previous run had reached, for example inside a repeated lookahead: `(?:(?=(?:a|(?=b)){2,})a){2}` matched `aa`. (#312)
+- A `{n,}` repetition whose body can match an empty string ended as soon as an iteration matched empty, even below the minimum. When the first iteration matched empty, the last required one now still runs, so `(?:(?=^)a*){2,}b` matches `aab`. A body that reads a capture group it sets itself can match differently in the next iteration, so there all required iterations run, and `^(?:(?(1)a|())){3,}$` no longer matches an empty string. (#325)
+- A conditional whose condition fails no longer leaves its entry on the VM's explicit stack. Before, an enclosing atomic group or possessive repeat read that entry at its end and kept its backtrack branches: `(z)?(?>a*(?(1)x))a` matched "aaa". (#316)
+- A conditional whose true branch is a group of alternatives, such as `(?(1)(?:a|b))`, was parsed as `(?(1)a|b)`, so `b` became the false branch. (#315)
+- Inline flags set inside a capturing, named, atomic, lookaround, conditional or absent group, like `(a(?i)b)c`, now end with the group. Before, they leaked to the rest of the pattern, so `(a(?i)b)c` matched `aBC` and `(?x)G(o(?-x)o) g` did not ignore the spaces after the group. Only `(?:...)` and `(?flags:...)` restored them. (#317)
+- In Oniguruma mode, `{,}` is now literal text, as in Oniguruma, instead of being parsed as `{0,}`. For example `(?:ab){,}` matches `ab{,}`. `{,n}` is still `{0,n}`, and without Oniguruma mode `{,}` is unchanged. (#321)
+- In Oniguruma mode, a `?` after an interval with swapped limits, like `a{3,2}?`, is now another quantifier, as in Oniguruma, so it makes the possessive `a{2,3}` optional. Before, it made the repeat lazy, so `a{3,2}?` matched `aa` in `aaa` and didn't match an empty string. A `?`, `*` or `+` after a repeated empty group, like in `(?:)**` or `(?:){3,2}?`, is now dropped along with it instead of failing to parse. (#322)
+- In Oniguruma mode, a `?` after a fixed interval, like `a{3}?`, is now another quantifier, as in Oniguruma, so `a{3}?` means `(?:a{3})?`. Before, it made the repeat lazy, which doesn't change anything for a fixed count, so `a{3}?` didn't match `aa` and `a{3}??` matched `aaa` instead of an empty string. `a{3,3}?` is still lazy, and without Oniguruma mode `a{3}?` is unchanged.
+- A backref or conditional inside the group it refers to now sees the group's previous capture, as in PCRE and Perl. Before, it saw the new start of the group with the end of its previous capture, so `(?:(\1|a)b){2}` panicked on `abab` and `^((?(1)b|a))$` matched `b` but not `a`. (#328)
+
+## [0.20.0] - 2026-10-24
+### Added
+- Add `RegexOptionsBuilder::build_delegate_prefilter` to disable building the prefilter (#282)
+- Add `RegexOptionsBuilder::start_bytes` that returns the first bytes that can match a pattern so you can build your own prefilter (#282)
+- Add `RegexOptionsBuilder::required_bytes` that returns the required bytes for a pattern to match (#287)
+- Add `RegexOptionsBuilder::max_prog_size` / `RegexBuilder::max_prog_size` to cap the number of VM instructions emitted while compiling. Subroutine calls are inlined at compile time, so a self- or mutually-recursive pattern can expand without bound even while the recursion-depth cap is respected; this bounds the emitted instruction vector instead. Exceeding the cap returns `CompileError::PatternTooComplex`. Disabled by default. (#298)
+- Implement support for variable length hard lookbehinds, by seeking backwards to candidate match start positions and then matching forward as usual. The reverse DFA honours `delegate_size_limit` and `delegate_dfa_size_limit`. (#286, #309)
+- Add `RegexOptionsBuilder::delegate_dfa_skip_cache_capacity_check` / `RegexBuilder::delegate_dfa_skip_cache_capacity_check`, enabled by default. Setting it to `false` makes the reverse DFA of a variable-length lookbehind strictly honour `delegate_dfa_size_limit`, so a too-small limit becomes a compile error. (#309)
+- Add `ByteSet::is_subset` to test whether one byte set is a subset of another. (#289)
+### Changed
+- If a lookbehind consists of an Alt containing only easy expressions and at least 4 branches (and no capture groups), compile it as a variable lookbehind (if the feature is enabled) instead of trying every branch as its own const-size lookbehind. One reverse-DFA delegate over the whole alternation is much cheaper per attempt, and grants a perf boost. (#285)
+- Word boundaries (`\b`, `\B`, `\<`, `\>`) are no longer marked hard outside a lookbehind. regex-automata supports them, so a pattern like `\b(?:foo|bar|baz)\b` now compiles to a single delegated engine instead of one branch per alternative — previously it grew linearly with the number of alternatives. They remain hard inside a lookbehind, since regex-automata's reverse DFA can't run a variable-length lookbehind on unicode haystacks. The half-boundary variants and `\Z` are still always hard. (#311)
+- The parser now tracks every capture group declared with the same name; `Regex::capture_names` reports the name for each of them, and named backrefs resolve to the last group with that name (#177)
+### Fixed
+- The reverse lazy DFA built for a variable-length lookbehind failed to compile when it needed a larger cache capacity than the configured `delegate_dfa_size_limit` (or the default of 2 MiB); for example `(?<=\p{L}{99,100})x` failed to compile with default settings. The capacity is now rounded up to the minimum required. Ordinary delegates were not affected because the meta engine falls back to another engine when the lazy DFA cannot be built. (#309)
+- `delegate_dfa_size_limit` now sets the lazy DFA cache capacity (`hybrid_cache_capacity`) as documented, instead of the fully compiled DFA size limit. It had been forwarded to the wrong regex-automata option since the switch from the `regex` crate. (#307)
+- Fix bug with literal bytes being used in unicode mode unexpectedly: in Unicode mode, `\xHH` escapes above `0x7F` now match the Unicode codepoint (as UTF-8 bytes) instead of the raw byte, so e.g. `\xFF` matches `ÿ` rather than the byte `0xFF`. In bytes modes the raw byte is matched as before. (#292)
+- Fix case-insensitive prefilter computation for non-ASCII class ranges that fold to characters with different lead bytes (e.g. `(?i)[à-ÿ]`), which previously could miss candidate start positions. (#296)
+- Fix `^` / `$` and their multi-line variants matching at the start/end of arbitrary-byte haystacks in `Ascii` and `UnicodeBytes` bytes modes, where the match position was not a UTF-8 codepoint boundary. (#300)
+- Fix seek optimization dropping matches when conditionals had empty branches, e.g. `(a)?b(?(1)c)` no longer fails to match `b`. (#304)
+- Fix hard variable-length lookbehind reverse DFA ignoring the caller's Unicode and bytes-mode settings, giving wrong results in non-Unicode bytes modes (e.g. `(?<=(\w+)\1)x` on `ééx`). (#310)
+
+## [0.19.2] - 2026-09-13
+### Added
+- Add a `leftmost_longest` feature (off by default) that adds a method to the `RegexBuilder`/`RegexOptionsBuilder` for building a VM which would operate in leftmost-longest match mode instead of the regular leftmost-first mode. Useful for POSIX compliance. (#281)
+### Changed
+### Fixed
+- Fix a panic in `capture_names()` for a pattern with a zero-repeated named group such as `(?<n>a){0}` (#275)
+- Literal bytes were being encoded as utf-8 in Ascii mode, now they match the exact byte literal
+
+## [0.19.1] - 2026-09-06
+### Added
+- Add a `perf-dfa-full` feature (off by default, mirroring the `regex` crate) that lets regex-automata eagerly build fully compiled dense DFAs for small patterns, for workloads that compile few regexes and match them very heavily (#272)
+### Changed
+- Add VM instruction for case insensitive literals when in Unicode mode, to keep the build cost bounded (#268) and ensured the toy example graph output remains readable instead of being super verbose (#269)
+- Compilation performance: the `regex-automata` dependency no longer enables the `dfa-build` feature by default. With `dfa-build` enabled, `meta::Regex` eagerly determinizes a full dense DFA for every small pattern, which dominated build time of simple class-containing patterns (e.g. `\b(extern)\s+(crate)` compiled ~4x slower than with the `regex` crate, which also ships without `dfa-build`); searches use the lazy DFA instead, with no measurable match-time difference (#272)
+- Compilation performance: identical delegated fragments within one compile now share a single regex-automata engine instead of each building their own. Alternation-heavy patterns (TextMate grammar lookbehinds especially) often repeat the same fragment many times; on such patterns this removes a large share of build time (#277)
+### Fixed
+- The playground didn't show when a literal or backreference was being matched case insensitively in the analysis tree view (#269)
+- Seek patterns could become very large when recursive backrefs and subroutine calls were inlined, without bringing much benefit (#270)
+- The `optimize_nested_repeats` pass could rewrite an optional capture group like `(\w+)?` into `(\w*)`, causing an unmatched optional group to be reported as an empty match (`Some("")`) instead of `None` (#276)
+
+## [0.19.0] - 2026-07-28
+### Added
+- Add `BytesMode` and the `RegexInput` trait so the matching and capture APIs can operate on strings or bytes, and allows to opt out of unicode handling if desired (#248)
+  - Also allows searching within a range without slicing (#253)
+  - Assertions can be overridden at runtime, if the regex builder `allow_input_assertion_overrides` option was used (#254)
+  - Search can be performed in anchored mode, searching only at the start position specified (#263)
+- Add experimental seek optimization to only invoke the VM at candidate positions where a match could occur (#246)
+- Add `RegexBuilder::disallow_empty_match_at_eof_after_newline` to reject empty matches at the end of the haystack following a trailing newline, to match Oniguruma behavior (#247)
+- Add `RegexSet` API for efficiently matching multiple patterns against the same text (#255)
+### Changed
+- Case-insensitive backreference comparison of non-ASCII text now uses direct Unicode simple case folding instead of building a regex engine per comparison, which makes patterns like `(?i)(\w+)\1` orders of magnitude faster on non-ASCII haystacks. The comparison is now strict fold equality over the captured text's byte-length window: a case-folded *prefix* of the window no longer counts as a match (previously a substring search could accept one and misalign the match end)
+- Compilation performance: delegated regex-automata engines (including the whole pattern in the easy case) are now built from a directly-constructed `Hir` instead of a re-serialized pattern string, and `RegexSet` parses each pattern once for both of its set-wide engines instead of three times. This reduces compile time and peak compile memory, especially for `RegexSet` and small easy patterns
+- Match performance: the backtracking VM's working memory (saves, backtrack stack, delegate slots) is pooled and reused across runs, making `is_match`/`find`/`find_iter` and `RegexSet` candidate verification allocation-free per call; `RegexSet::find_input` no longer allocates at failed candidate positions. Short and repeated matches improve substantially (up to ~30% for small patterns, ~10% for `find_iter` over many matches); single very long backtracking runs, where per-run setup is fully amortized anyway, can be a few percent slower
+- `Matches`, `CaptureMatches`, `Captures`, and `SubCaptureMatches` are now generic over `RegexInput`, which is a breaking change for code that named these types explicitly (#248)
+- Patterns no longer force Unicode mode during parsing, and inline `(?u)` / `(?-u)` flags are accepted when they agree with the builder configuration
+### Fixed
+- Fix bug whereby inline flags were not overriding the builder options (#247)
+- Fix bug whereby `\G` optimizations were applying where they shouldn't, giving wrong results (#256)
+- Support Oniguruma quantifier parsing rules, whereby swapped ordering causes possessiveness, `+` only causes possessiveness after `?`, `*` or `+` (#258)
+### Upgrade guide
+If you previously stored i.e. `Captures`, you would need to change the type to `Captures<str>` to get the code to compile.
+
+## [0.18.0] - 2026-04-24
+### Added
+- Add support for `\N` to mean any character except newline, for Oniguruma compatibility (#206)
+- Add support for `(*FAIL)` backtracking control verb (#210)
+- Add support for more `\p{...}` and `\P{...}` aliases, for Oniguruma compatibility (#207)
+- Add support for word boundaries and zero-length fancy patterns inside variable lookbehinds (at top level) (#216)
+- Add support for `\R` to mean general newline, matching all common line break characters, treating `\r\n` atomically (#220)
+- Add support for the regex crate's `(?R)` CRLF mode flag (#238)
+- Add support for subroutine calls (including recursion up to 20 levels deep, matching Oniguruma behavior) `\g<1>` (#230)
+- Add support for Oniguruma's absent repeater `(?~abc)` (#233)
+- Add support for ignoring empty matches (#240)
+- Add support for treating unnamed capture groups as non-capturing when named groups exist (#241)
+### Changed
+- `RegexBuilder` can now build multiple patterns with the same options (#213)
+- Parsing of capture group names is now more lenient (#241)
+### Fixed
+- Fixed bug with parsing nested character classes containing unescaped `]` (#211)
+
+## [0.17.0] - 2025-12-13
+### Added
+- Add support for "easy" variable-length lookbehinds (enabled via new feature flag) (#194, #196)
+- Add support for more word boundaries: `\b{start}`, `\b{end}`, `\b{start-half}`, `\b{end-half}` (#193)
+- Allow `{...}` repetition syntax after assertions (except in Oniguruma mode) (#193)
+- Add Oniguruma mode flag to playground (#199)
+### Changed
+- Rewrite Theory section of Readme in a more formal style (#187)
+- Box `CompileError` in `Error` enum to reduce size (#204)
+- Bail out early when `\G` fails to match for increased performance (#198)
+- Handle `ignore_whitespace` case in parsing escape sequences (#193)
+- Add tests to ensure that `Regex` is `Send` and `Sync` (#195)
+### Fixed
+- Fix clippy lint warnings (#204)
+
+## [0.16.2] - 2025-09-19
+### Added
+- Add an "oniguruma mode" flag to control whether `\<` and `\>` are treated as literals or word-boundary assertions. (#186)
+- Add support for const-size backrefs in lookbehinds. (#182)
+### Changed
+- A few small internal changes which allowed us to expose a web-based playground for fancy-regex. (#181)
+### Fixed
+- Fix behavior of repetition on an empty match. (#179)
+- Always return the original input pattern when `as_str` is called. (#185)
+- Fix panic when matching non-ascii text as part of a case insensitive backref. (#189)
+- The `toy` example wasn't always showing the correct analysis or compiled program when optimizations were applied. (#181)
+
+## [0.16.1] - 2025-08-02
+### Fixed
+- Fixed a bug whereby sometimes a backreference to a non-existing capture group would compile successfully
+  when it should fail, causing a panic in the VM when trying to match the regex. (#174)
+
+## [0.16.0] - 2025-08-01
+### Added
+- Add an optimization step after the pattern is parsed but before it is analyzed.
+  Currently it only optimizes one specific use-case - where the expression is easy except
+  for a trailing positive lookahead whose contents are also easy. The optimization is to delegate to the regex crate instead of using the backtracking VM. (#171)
+### Changed
+- Patterns which are anchored to the start of the text (i.e. with `^` when not in multiline mode) should now fail faster when there is no match, because `fancy-regex` no longer tries to match at other positions. (#170)
+- The `CompileError` for an invalid (numbered) backref has been updated to mention which backref was invalid (#170)
+- Removed dependency on derivative (#169)
+### Fixed
+- Fixed a bug whereby sometimes a capture group containing a backref to itself would cause a compile error, when it is valid - this fixes a few Oniguruma test cases (#170)
+
+## [0.15.0] - 2025-07-06
+### Added
+- Support `\Z` - anchor to the end of the text before any trailing newlines. (#148)
+- Support `\O` - any character including newlines. (#158)
+- The parser can now parse subroutine calls and relative backreferences (but execution is still unsupported). This is preparation for future work. Some new error variants have been added for features which can be parsed but are still otherwise unsupported.
+- Backreferences can now be case insensitive. (#160)
+- `RegexBuilder`: Add options for `multi_line`, `ignore_whitespace`, `dot_matches_new_line` (#165)
+### Fixed
+- Fix infinite loop when backtracking limit is hit (#153)
+- Fix `RegexBuilder.case_insensitive` not always applying when it should. (#163)
+- The `toy` example has had various bugfixes, and unit tests added. (#152, #159)
+
+## [0.14.0] - 2024-10-24
+### Added
+- Add `split`, `splitn` methods to `Regex` to split a string into substrings (#140)
+- Add `case_insensitive` method to `RegexBuilder` to force case-insensitive mode (#132)
+### Changed
+- Bump bit-set dependency to 0.8 (#139)
+
+## [0.13.0] - 2023-12-22
+### Added
+- Support for relative backreferences using `\k<-1>` (-1 references the
+  previous group) (#121)
+- Add `try_replacen` to `Regex` which returns a `Result` instead of panicking
+  when matching errors (#130)
+### Changed
+- Switch from regex crate to regex-automata and regex-syntax (lower level APIs)
+  to simplify internals (#121)
+- **Note:** Due to above change, more backtracking is done in fancy-regex itself
+  instead of regex-automata, and you might get a `BacktrackLimitExceeded` with
+  some patterns that you didn't get before. You can increase the backtrack limit
+  using `RegexBuilder::backtrack_limit` to help with that.
+- Allow escaping some letters in character classes, e.g. `[\A]` used to error
+  but now matches the same as `[A]` (for compatibility with Oniguruma)
+- MSRV (minimum supported Rust version) is now 1.66.1 (from 1.61.0)
+### Fixed
+- Fix index out of bounds panic when parsing unclosed `(?(` (#125)
+
+## [0.12.0] - 2023-11-11
+### Added
+- Support for `no_std` (the `std` feature is enabled by default but can be
+  disabled if desired) (#111)
+- `TryFrom` `&str` and `String` impl for `Regex` (#115)
+### Changed
+- `Error` and its components are now `Clone` (#116)
+- MSRV (minimum supported Rust version) is now 1.61.0 (from 1.42.0)
+
+## [0.11.0] - 2023-01-12
+### Added
+- Support for [conditionals](https://www.regular-expressions.info/conditional.html): using a regex like
+  `(?<test>a)?b(?(test)c|d)` will try to match `c` after `b` if `a` matched in the capture group named
+  `test`, otherwise `d` after `b` if `a` wasn't captured into the `test` group.
+### Changed
+- Updated parse errors to show the position they occurred at.
+### Fixed
+- Fix panic when backref is used within referenced group itself and
+  group end index is not known yet (#103)
+
+## [0.10.0] - 2022-04-28
+### Added
+- Support for `\G` ([anchor to end of previous match](https://www.regular-expressions.info/continue.html)): Using a regex
+  like `\G\w` will match each letter of `foo` in `foo bar` but
+  nothing else.
+
+## [0.9.0] - 2022-04-21
+### Added
+- Support for `\K` ([keep out](https://www.regular-expressions.info/keep.html)): Using a regex like `@\K\w+` will match
+  things like `@foo` but the resulting match text will only include
+  `foo`, keeping out the `@`.
+
+## [0.8.0] - 2022-02-22
+### Added
+- Allow users to disable any of the `unicode` and `perf-*` features of
+  the regex crate. Disabling these features can reduce compile time
+  and/or binary size for use cases where these features are not needed.
+  (All features remain enabled by default.)
+### Changed
+- MSRV (minimum supported Rust version) is now 1.42.0 (from 1.41.1)
+
+## [0.7.1] - 2021-07-29
+### Fixed
+- Fix panic on incomplete escape sequences in input regexes
+- Disallow quantifers on lookarounds and other zero-width assertion
+  expressions, e.g. the `+` in `(?=hello)+`
+
+## [0.7.0] - 2021-07-12
+### Added
+- `Regex` now has replace methods like the regex crate:
+  - `replace` - single replacement
+  - `replace_all` - replace all non-overlapping matches
+  - `replacen` - configurable number of replacements
+
+## [0.6.0] - 2021-05-17
+### Added
+- `Regex` now implements `Clone`, `Display`, `FromStr`
+- `Captures` now implements `Index<usize>` to access captures by number
+  and `Index<&str>` to access by name
+
+## [0.5.0] - 2021-02-15
+### Added
+- Methods `find_iter` and `captures_iter` to iterate over all
+  non-overlapping matches for a string
+- Method `find_from_pos` to `find` starting from a specific position
+### Changed
+- MSRV (minimum supported Rust version) is now 1.41.1 (from 1.32.0)
+
+## [0.4.1] - 2020-11-09
+### Added
+- `escape` function to escape special characters in a string so that it
+  matches literally
+
+## [0.4.0] - 2020-09-27
+### Added
+- Support for named groups and backrefs:
+  - Capture with `(?<name>...)` or `(?P<name>...)`
+  - Backref with `\k<name>` or `(?P=name)`
+  - `Captures::name` to get matched group by name
+  - `Regex::capture_names` to get capture names in regex
+- Support for expanding matches using a replacement template string
+  - `Captures::expand` for regex crate compatible syntax
+  - See `Expander` for python-compatible syntax and advanced usage
+- `Match::range` and some `From` impls for convenience
+
+## [0.3.5] - 2020-04-28
+### Changed
+- Include string snippet in errors for unknown group and invalid escape
+  to make it easier to identify the problem.
+
+## [0.3.4] - 2020-04-28
+### Added
+- Support comments using `(?# comment)` syntax
+- Support unicode escapes like `\u21D2` and `\U0001F60A`
+
+## [0.3.3] - 2020-02-28
+### Changed
+- Optimization: Delegate const-sized suffixes in more cases
+- Optimization: Use `captures_read_at` when delegating to regex crate
+
+## [0.3.2] - 2020-02-05
+### Fixed
+- Some regexes with fancy parts in the beginning/middle didn't match
+  when they should have, e.g. `((?!x)(a|ab))c` didn't match `abc`.
+
+## [0.3.1] - 2019-12-09
+### Added
+- Add `delegate_size_limit` and `delegate_dfa_size_limit` to
+  `RegexBuilder` to allow configuring these limits for regex crate.
+
+## [0.3.0] - 2019-11-27
+### Added
+- Add limit for backtracking so that execution errors instead of running
+  for a long time in case of catastrophic backtracking.
+- Add `RegexBuilder` with `backtrack_limit` to configure the new
+  backtrack limit per regex.
+- `Error` now implements `std::error::Error` trait
+### Fixed
+- Fix panic in backref matching with multibyte chars
+
+## [0.2.0] - 2019-10-19
+### Added
+- More documentation and examples
+- Support character class nesting and intersections (implemented in
+  regex crate)
+- Support atomic groups, both the the `(?>foo)` group syntax and the
+  `a++`, `a*+` and `a?+` possessive syntax
+- Support `\b`, `\f`, `\t`, `\n`, `\r`, `\v`
+- Support look-behind with variable sized alternative
+- Implement `Debug` for `Regex`
+- More test coverage including running one of Oniguruma's test suites
+### Changed
+- Change `find` to return a `Match` struct (breaking change)
+- Change `Captures` API (breaking change):
+  - Replace `at` and `pos` with `get` that returns a `Match` struct
+  - Remove `is_empty` (use `len`)
+- Allow unescaped `]` and `}` as literals
+- Allow unescaped `{` as literal when not after atom
+- Allow escapes such as `\<` or `\e` inside character classes
+- Allow up to 8 characters in `\x{...}` escape
+- Allow escaping of space to make literal space
+- Allow `(a|)`
+- Reject invalid backreferences
+### Fixed
+- Multiple fixes for alternatives in look-arounds
+- Fix hex escape to not include letters after "F"
+- Fix handling of unescaped `]` in character classes
+- Fix case insensitive character classes and other escapes
+- Don't ignore spaces in character classes even with "comment mode"
+
+## [0.1.0] - 2017-02-06
+### Added
+- Initial release
+
+[Unreleased]: https://github.com/fancy-regex/fancy-regex/compare/0.20.1...HEAD
+[0.20.1]: https://github.com/fancy-regex/fancy-regex/compare/0.20.0...0.20.1
+[0.20.0]: https://github.com/fancy-regex/fancy-regex/compare/0.19.2...0.20.0
+[0.19.2]: https://github.com/fancy-regex/fancy-regex/compare/0.19.1...0.19.2
+[0.19.1]: https://github.com/fancy-regex/fancy-regex/compare/0.19.0...0.19.1
+[0.19.0]: https://github.com/fancy-regex/fancy-regex/compare/0.18.0...0.19.0
+[0.18.0]: https://github.com/fancy-regex/fancy-regex/compare/0.17.0...0.18.0
+[0.17.0]: https://github.com/fancy-regex/fancy-regex/compare/0.16.2...0.17.0
+[0.16.2]: https://github.com/fancy-regex/fancy-regex/compare/0.16.1...0.16.2
+[0.16.1]: https://github.com/fancy-regex/fancy-regex/compare/0.16.0...0.16.1
+[0.16.0]: https://github.com/fancy-regex/fancy-regex/compare/0.15.0...0.16.0
+[0.15.0]: https://github.com/fancy-regex/fancy-regex/compare/0.14.0...0.15.0
+[0.14.0]: https://github.com/fancy-regex/fancy-regex/compare/0.13.0...0.14.0
+[0.13.0]: https://github.com/fancy-regex/fancy-regex/compare/0.12.0...0.13.0
+[0.12.0]: https://github.com/fancy-regex/fancy-regex/compare/0.11.0...0.12.0
+[0.11.0]: https://github.com/fancy-regex/fancy-regex/compare/0.10.0...0.11.0
+[0.10.0]: https://github.com/fancy-regex/fancy-regex/compare/0.9.0...0.10.0
+[0.9.0]: https://github.com/fancy-regex/fancy-regex/compare/0.8.0...0.9.0
+[0.8.0]: https://github.com/fancy-regex/fancy-regex/compare/0.7.1...0.8.0
+[0.7.1]: https://github.com/fancy-regex/fancy-regex/compare/0.7.0...0.7.1
+[0.7.0]: https://github.com/fancy-regex/fancy-regex/compare/0.6.0...0.7.0
+[0.6.0]: https://github.com/fancy-regex/fancy-regex/compare/0.5.0...0.6.0
+[0.5.0]: https://github.com/fancy-regex/fancy-regex/compare/0.4.1...0.5.0
+[0.4.1]: https://github.com/fancy-regex/fancy-regex/compare/0.4.0...0.4.1
+[0.4.0]: https://github.com/fancy-regex/fancy-regex/compare/0.3.5...0.4.0
+[0.3.5]: https://github.com/fancy-regex/fancy-regex/compare/0.3.4...0.3.5
+[0.3.4]: https://github.com/fancy-regex/fancy-regex/compare/0.3.3...0.3.4
+[0.3.3]: https://github.com/fancy-regex/fancy-regex/compare/0.3.2...0.3.3
+[0.3.2]: https://github.com/fancy-regex/fancy-regex/compare/0.3.1...0.3.2
+[0.3.1]: https://github.com/fancy-regex/fancy-regex/compare/0.3.0...0.3.1
+[0.3.0]: https://github.com/fancy-regex/fancy-regex/compare/0.2.0...0.3.0
+[0.2.0]: https://github.com/fancy-regex/fancy-regex/compare/0.1.0...0.2.0
+[0.1.0]: https://github.com/fancy-regex/fancy-regex/commits/0.1.0

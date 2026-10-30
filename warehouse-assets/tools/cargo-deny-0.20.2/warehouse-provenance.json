@@ -1,0 +1,6 @@
+{
+  "crate": "cargo-deny",
+  "crate_sha256": "e528dfcbe739af7ce37a77d3d6df1b29dd6887b1c701d888820c0f16b864f737",
+  "published_lock_sha256": "72524836b04cb973cbd61485b4c11a15c2e67073b3fbd93246563a0e899e7772",
+  "version": "0.20.2"
+}

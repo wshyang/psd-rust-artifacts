@@ -1,0 +1,92 @@
+use crate::{
+    base32::Error,
+    generator::Result,
+    id::{BeBytes, Id},
+};
+
+/// Extension trait for types that support Crockford Base32 encoding and
+/// decoding.
+///
+/// This trait enables converting IDs (typically backed by primitive integers)
+/// to and from fixed-length, lexicographically sortable Base32 strings using
+/// the [Crockford Base32](https://www.crockford.com/base32.html) alphabet.
+///
+/// It relies on the [`BeBytes`] trait for bit-level access to the underlying
+/// integer representation, and produces fixed-width ASCII-encoded output
+/// suitable for ordered storage (e.g., in databases, file systems, or URLs).
+///
+/// # Features
+///
+/// - Zero-allocation encoding support
+/// - Fixed-width, lexicographically sortable output
+/// - ASCII-safe encoding using Crockford's Base32 alphabet
+/// - Fallible decoding with strong validation
+pub trait Base32Ext: Id
+where
+    Self::Ty: BeBytes,
+{
+    /// Allocates a default, zero-initialized buffer for the backing integer of
+    /// the ID.
+    ///
+    /// This is a convenience method that returns a [`BeBytes::ByteArray`].
+    #[inline]
+    fn inner_byte_array() -> <Self::Ty as BeBytes>::ByteArray {
+        <Self::Ty as BeBytes>::ByteArray::default()
+    }
+
+    /// Allocates a default, zero-initialized buffer for Base32 encoding.
+    ///
+    /// This is a convenience method that returns a [`BeBytes::Base32Array`]
+    /// suitable for use with [`Base32Ext::inner_encode_to_buf`]. The returned buffer is
+    /// stack-allocated, has a fixed size known at compile time, and is
+    /// guaranteed to match the Crockford Base32 output size for the backing
+    /// integer type.
+    ///
+    /// See also: [`Base32Ext::inner_encode_to_buf`] for usage.
+    #[inline]
+    fn inner_base32_array() -> <Self::Ty as BeBytes>::Base32Array {
+        <Self::Ty as BeBytes>::Base32Array::default()
+    }
+    /// Encodes this ID into the provided output buffer without heap allocation.
+    ///
+    /// This is the zero-allocation alternative to [`Base32Ext::enc`]. The
+    /// output buffer must be exactly [`BeBytes::BASE32_SIZE`] bytes in length,
+    /// which is guaranteed at compile time when using [`BeBytes::Base32Array`].
+    #[inline]
+    fn inner_encode_to_buf(&self, buf: &mut <Self::Ty as BeBytes>::Base32Array) {
+        super::encode_base32(self.to_raw().to_be_bytes().as_ref(), buf.as_mut());
+    }
+    /// Decodes a Base32-encoded string back into an ID.
+    ///
+    /// # ⚠️ Note
+    /// This method performs a structural decode of the Base32 string into the
+    /// raw underlying integer. It does **not** validate whether the decoded
+    /// value satisfies semantic invariants of the ID format (e.g., reserved
+    /// bits).
+    ///
+    /// If your ID type includes reserved bits, you should explicitly validate
+    /// the result using `.is_valid()` or normalize it using `.into_valid()`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the input string:
+    /// - is not the expected fixed length
+    /// - contains invalid UTF8 or invalid ASCII characters (i.e., not in the
+    ///   Crockford Base32 alphabet)
+    #[inline]
+    fn inner_decode<E>(input: impl AsRef<[u8]>) -> Result<Self, Error<E>> {
+        let bytes = input.as_ref();
+        if bytes.len() != Self::Ty::BASE32_SIZE {
+            return Err(Error::DecodeInvalidLen { len: bytes.len() });
+        }
+        let raw = super::decode_base32(bytes)?;
+        Ok(Self::from_raw(raw))
+    }
+}
+
+impl<ID> Base32Ext for ID
+where
+    ID: Id,
+    ID::Ty: BeBytes,
+{
+}

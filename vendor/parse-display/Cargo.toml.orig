@@ -1,0 +1,30 @@
+[package]
+name = "parse-display"
+version = "0.9.1"
+edition = "2021"
+authors = ["frozenlib"]
+license = "MIT OR Apache-2.0"
+readme = "../README.md"
+repository = "https://github.com/frozenlib/parse-display"
+documentation = "https://docs.rs/parse-display/"
+keywords = ["derive", "enum", "from_str", "display", "regex"]
+categories = ["parsing"]
+description = "Procedural macro to implement Display and FromStr using common settings."
+include = ["/src/**"]
+rust-version = "1.70.0"
+
+[features]
+default = ["std"]
+std = ["regex", "regex-syntax"]
+docs = []
+
+[dependencies]
+parse-display-derive = { version = "=0.9.1", path = "../parse-display-derive" }
+regex = { version = "1.10.4", optional = true }
+regex-syntax = { version = "0.8.3", optional = true }
+
+[dev-dependencies]
+trybuild = "1.0.96"
+
+[package.metadata.docs.rs]
+features = ["docs"]

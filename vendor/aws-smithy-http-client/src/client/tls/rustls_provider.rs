@@ -1,0 +1,669 @@
+/*
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
+use crate::client::tls::Provider;
+use rustls::crypto::CryptoProvider;
+
+/// Choice of underlying cryptography library (this only applies to rustls)
+#[derive(Debug, Clone)]
+#[non_exhaustive]
+pub enum CryptoMode {
+    /// Crypto based on [ring](https://github.com/briansmith/ring)
+    #[cfg(feature = "rustls-ring")]
+    Ring,
+    /// Crypto based on [aws-lc](https://github.com/aws/aws-lc-rs)
+    #[cfg(feature = "rustls-aws-lc")]
+    AwsLc,
+    /// FIPS compliant variant of [aws-lc](https://github.com/aws/aws-lc-rs)
+    #[cfg(feature = "rustls-aws-lc-fips")]
+    AwsLcFips,
+    /// Use a caller-supplied [`CryptoProvider`].
+    ///
+    /// Unlike the built-in modes, the cipher-suite restriction normally
+    /// applied by smithy-rs is skipped -- the caller is expected
+    /// to select the applicable cipher suites via the supplied provider.
+    ///
+    /// This variant is provided behind an `aws_sdk_unstable` cfg flag,
+    /// because the version of rustls may change in the future,
+    #[cfg(all(aws_sdk_unstable, feature = "__rustls"))]
+    Custom(CryptoProvider),
+}
+
+impl std::cmp::PartialEq for CryptoMode {
+    fn eq(&self, other: &CryptoMode) -> bool {
+        match (self, other) {
+            #[cfg(feature = "rustls-ring")]
+            (Self::Ring, Self::Ring) => true,
+            #[cfg(feature = "rustls-aws-lc")]
+            (Self::AwsLc, Self::AwsLc) => true,
+            #[cfg(feature = "rustls-aws-lc-fips")]
+            (Self::AwsLcFips, Self::AwsLcFips) => true,
+            // `CryptoProvider` does not implement PartialEq, so any
+            // `CryptoMode::Custom` value will always compare not equal to
+            // any other.
+            #[allow(unreachable_patterns)]
+            _ => false,
+        }
+    }
+}
+
+#[cfg(not(all(aws_sdk_unstable, feature = "__rustls")))]
+impl Eq for CryptoMode {}
+
+impl CryptoMode {
+    fn provider(self) -> CryptoProvider {
+        match self {
+            #[cfg(feature = "rustls-aws-lc")]
+            CryptoMode::AwsLc => rustls::crypto::aws_lc_rs::default_provider(),
+
+            #[cfg(feature = "rustls-ring")]
+            CryptoMode::Ring => rustls::crypto::ring::default_provider(),
+
+            #[cfg(feature = "rustls-aws-lc-fips")]
+            CryptoMode::AwsLcFips => {
+                let provider = rustls::crypto::default_fips_provider();
+                assert!(
+                    provider.fips(),
+                    "FIPS was requested but the provider did not support FIPS"
+                );
+                provider
+            }
+            #[cfg(all(aws_sdk_unstable, feature = "__rustls"))]
+            CryptoMode::Custom(provider) => provider,
+        }
+    }
+
+    #[cfg(all(aws_sdk_unstable, feature = "__rustls"))]
+    fn is_custom(&self) -> bool {
+        matches!(self, Self::Custom(_))
+    }
+
+    #[cfg(not(all(aws_sdk_unstable, feature = "__rustls")))]
+    fn is_custom(&self) -> bool {
+        false
+    }
+}
+
+impl Provider {
+    /// Create a TLS provider based on [rustls](https://github.com/rustls/rustls)
+    /// and the given [`CryptoMode`]
+    pub fn rustls(mode: CryptoMode) -> Provider {
+        Provider::Rustls(mode)
+    }
+}
+
+pub(crate) mod build_connector {
+    use crate::client::tls::rustls_provider::CryptoMode;
+    use crate::tls::TlsContext;
+    use client::connect::HttpConnector;
+    use hyper_util::client::legacy as client;
+    use rustls::client::danger::ServerCertVerified;
+    use rustls::client::danger::ServerCertVerifier;
+    use rustls::client::WebPkiServerVerifier;
+    use rustls::crypto::CryptoProvider;
+    use rustls_native_certs::CertificateResult;
+    use rustls_pki_types::pem::PemObject;
+    use rustls_pki_types::CertificateDer;
+    use rustls_pki_types::ServerName as RustlsServerName;
+    use std::sync::Arc;
+    use std::sync::LazyLock;
+
+    /// Cached native certificates
+    ///
+    /// Creating a `with_native_roots()` hyper_rustls client re-loads system certs
+    /// each invocation (which can take 300ms on OSx). Cache the loaded certs
+    /// to avoid repeatedly incurring that cost.
+    pub(crate) static NATIVE_ROOTS: LazyLock<Vec<CertificateDer<'static>>> = LazyLock::new(|| {
+        let CertificateResult { certs, errors, .. } = rustls_native_certs::load_native_certs();
+        if !errors.is_empty() {
+            tracing::warn!("native root CA certificate loading errors: {errors:?}")
+        }
+
+        if certs.is_empty() {
+            tracing::warn!("no native root CA certificates found!");
+        }
+
+        // NOTE: unlike hyper-rustls::with_native_roots we don't validate here, we'll do that later
+        // for now we have a collection of certs that may or may not be valid.
+        certs
+    });
+
+    pub(crate) fn restrict_ciphers(base: CryptoProvider) -> CryptoProvider {
+        let suites = &[
+            rustls::CipherSuite::TLS13_AES_256_GCM_SHA384,
+            rustls::CipherSuite::TLS13_AES_128_GCM_SHA256,
+            // TLS1.2 suites
+            rustls::CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+            rustls::CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+            rustls::CipherSuite::TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+            rustls::CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+            rustls::CipherSuite::TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
+        ];
+        let supported_suites = suites
+            .iter()
+            .flat_map(|suite| {
+                base.cipher_suites
+                    .iter()
+                    .find(|s| &s.suite() == suite)
+                    .cloned()
+            })
+            .collect::<Vec<_>>();
+        CryptoProvider {
+            cipher_suites: supported_suites,
+            ..base
+        }
+    }
+
+    impl TlsContext {
+        pub(crate) fn rustls_root_certs(&self) -> rustls::RootCertStore {
+            let mut roots = rustls::RootCertStore::empty();
+            if self.trust_store.enable_native_roots {
+                let (valid, _invalid) = roots.add_parsable_certificates(NATIVE_ROOTS.clone());
+                debug_assert!(valid > 0, "TrustStore configured to enable native roots but no valid root certificates parsed!");
+            }
+
+            for pem_cert in &self.trust_store.custom_certs {
+                let ders = CertificateDer::pem_slice_iter(&pem_cert.0)
+                    .collect::<Result<Vec<_>, _>>()
+                    .expect("valid PEM certificate");
+                for cert in ders {
+                    roots.add(cert).expect("cert parsable")
+                }
+            }
+
+            roots
+        }
+
+        fn additional_server_names(&self) -> Vec<RustlsServerName<'static>> {
+            self.additional_server_names
+                .iter()
+                .map(|name| name.0.clone())
+                .collect()
+        }
+    }
+
+    /// Create a rustls ClientConfig with smithy-rs defaults
+    ///
+    /// This centralizes the rustls ClientConfig creation logic to ensure
+    /// consistency between the main HTTPS connector and tunnel handlers.
+    pub(crate) fn create_rustls_client_config(
+        crypto_mode: CryptoMode,
+        tls_context: &TlsContext,
+    ) -> rustls::ClientConfig {
+        let skip_restrict = crypto_mode.is_custom();
+        let provider = Arc::new(if skip_restrict {
+            crypto_mode.provider()
+        } else {
+            restrict_ciphers(crypto_mode.provider())
+        });
+        let root_certs = tls_context.rustls_root_certs();
+        let additional_server_names = tls_context.additional_server_names();
+
+        let builder = rustls::ClientConfig::builder_with_provider(Arc::clone(&provider))
+            .with_safe_default_protocol_versions()
+            .expect("Error with the TLS configuration. Please file a bug report under https://github.com/smithy-lang/smithy-rs/issues.");
+
+        if additional_server_names.is_empty() {
+            builder
+                .with_root_certificates(root_certs)
+                .with_no_client_auth()
+        } else {
+            let web_pki_server_verifier = WebPkiServerVerifier::builder_with_provider(
+                Arc::new(root_certs),
+                Arc::clone(&provider),
+            )
+            .build()
+            .expect("at least one root certificate was provided as a trust anchor");
+
+            builder
+                .dangerous()
+                .with_custom_certificate_verifier(Arc::new(ServerVerifier {
+                    web_pki_server_verifier,
+                    additional_server_names,
+                }))
+                .with_no_client_auth()
+        }
+    }
+
+    /// A server certificate verifier that extends standard WebPKI verification with
+    /// support for additional server names.
+    ///
+    /// By default, rustls verifies the server's certificate against the hostname from
+    /// the request URI. This verifier first attempts standard verification against that
+    /// hostname, and if it fails, retries verification against each name in
+    /// [`additional_server_names`](crate::tls::TlsContext::additional_server_names).
+    /// This is useful when a server presents a certificate whose Subject Alternative
+    /// Names (SANs) do not include the hostname used to connect, but do include an
+    /// alternative name the client has been configured to accept.
+    ///
+    /// All other verification behavior (signature validation, trust chain resolution,
+    /// TLS 1.2/1.3 signature checks) is delegated to the inner [`WebPkiServerVerifier`].
+    #[derive(Debug)]
+    struct ServerVerifier {
+        web_pki_server_verifier: Arc<WebPkiServerVerifier>,
+        additional_server_names: Vec<RustlsServerName<'static>>,
+    }
+
+    impl ServerCertVerifier for ServerVerifier {
+        fn verify_server_cert(
+            &self,
+            end_entity: &CertificateDer<'_>,
+            intermediates: &[CertificateDer<'_>],
+            server_name: &RustlsServerName<'_>,
+            ocsp_response: &[u8],
+            now: rustls_pki_types::UnixTime,
+        ) -> Result<rustls::client::danger::ServerCertVerified, rustls::Error> {
+            match self.web_pki_server_verifier.verify_server_cert(
+                end_entity,
+                intermediates,
+                server_name,
+                ocsp_response,
+                now,
+            ) {
+                Ok(server_cert_verified) => Ok(server_cert_verified),
+                Err(error) => {
+                    let matched = self.additional_server_names.iter().any(|alt_name| {
+                        self.web_pki_server_verifier
+                            .verify_server_cert(
+                                end_entity,
+                                intermediates,
+                                alt_name,
+                                ocsp_response,
+                                now,
+                            )
+                            .is_ok()
+                    });
+                    if matched {
+                        Ok(ServerCertVerified::assertion())
+                    } else {
+                        Err(error)
+                    }
+                }
+            }
+        }
+
+        fn verify_tls12_signature(
+            &self,
+            message: &[u8],
+            cert: &CertificateDer<'_>,
+            dss: &rustls::DigitallySignedStruct,
+        ) -> Result<rustls::client::danger::HandshakeSignatureValid, rustls::Error> {
+            self.web_pki_server_verifier
+                .verify_tls12_signature(message, cert, dss)
+        }
+
+        fn verify_tls13_signature(
+            &self,
+            message: &[u8],
+            cert: &CertificateDer<'_>,
+            dss: &rustls::DigitallySignedStruct,
+        ) -> Result<rustls::client::danger::HandshakeSignatureValid, rustls::Error> {
+            self.web_pki_server_verifier
+                .verify_tls13_signature(message, cert, dss)
+        }
+
+        fn supported_verify_schemes(&self) -> Vec<rustls::SignatureScheme> {
+            self.web_pki_server_verifier.supported_verify_schemes()
+        }
+    }
+
+    pub(crate) fn wrap_connector<R>(
+        conn: HttpConnector<R>,
+        crypto_mode: CryptoMode,
+        tls_context: &TlsContext,
+        proxy_config: crate::client::proxy::ProxyConfig,
+    ) -> super::connect::RustTlsConnector<R> {
+        wrap_connector_with_alpn(
+            conn,
+            crypto_mode,
+            tls_context,
+            proxy_config,
+            &[b"h2", b"http/1.1"],
+        )
+    }
+
+    /// Wraps an HTTP connector with the ALPN offer selected for one pool attempt.
+    pub(crate) fn wrap_connector_with_alpn<R>(
+        mut conn: HttpConnector<R>,
+        crypto_mode: CryptoMode,
+        tls_context: &TlsContext,
+        proxy_config: crate::client::proxy::ProxyConfig,
+        alpn_protocols: &[&[u8]],
+    ) -> super::connect::RustTlsConnector<R> {
+        let mut client_config = create_rustls_client_config(crypto_mode, tls_context);
+        client_config.alpn_protocols = alpn_protocols
+            .iter()
+            .map(|protocol| protocol.to_vec())
+            .collect();
+        conn.enforce_http(false);
+        let https_connector = hyper_rustls::HttpsConnector::from((conn, client_config.clone()));
+
+        super::connect::RustTlsConnector::new(https_connector, client_config, proxy_config)
+    }
+}
+
+pub(crate) mod connect {
+    use crate::client::connect::{Conn, ConnectPathInner, Connecting};
+    use crate::client::error_chain;
+    use crate::client::proxy::ProxyConfig;
+    use crate::client::tls::{TlsConnectError, TlsConnectErrorKind};
+    use aws_smithy_runtime_api::box_error::BoxError;
+    use http_1x::uri::Scheme;
+    use http_1x::Uri;
+    use hyper::rt::{Read, ReadBufCursor, Write};
+    use hyper_rustls::MaybeHttpsStream;
+    use hyper_util::client::legacy::connect::{Connected, Connection, HttpConnector};
+    use hyper_util::client::proxy::matcher::Matcher;
+    use hyper_util::rt::TokioIo;
+    use pin_project_lite::pin_project;
+    use std::error::Error;
+    use std::sync::Arc;
+    use std::{
+        io::{self, IoSlice},
+        pin::Pin,
+        task::{Context, Poll},
+    };
+    use tokio::io::{AsyncRead, AsyncWrite};
+    use tokio::net::TcpStream;
+    use tokio_rustls::client::TlsStream;
+    use tower::Service;
+
+    /// Tags a TLS handshake failure whose chain carries a `rustls::Error` as
+    /// [`TlsConnectErrorKind::Protocol`], and returns any other `error` unchanged.
+    ///
+    /// The chain is walked with [`error_chain`], which also visits each `io::Error`'s payload:
+    /// hyper-rustls nests the rustls error two `io::Error`s deep.
+    fn classify_rustls(error: BoxError) -> BoxError {
+        if error_chain(error.as_ref()).any(|error| error.is::<rustls::Error>()) {
+            Box::new(TlsConnectError::new(TlsConnectErrorKind::Protocol, error))
+        } else {
+            error
+        }
+    }
+
+    #[derive(Debug, Clone)]
+    pub(crate) struct RustTlsConnector<R> {
+        https: hyper_rustls::HttpsConnector<HttpConnector<R>>,
+        tls_config: Arc<rustls::ClientConfig>,
+        proxy_matcher: Option<Arc<Matcher>>, // Pre-computed for performance
+    }
+
+    impl<R> RustTlsConnector<R> {
+        pub(super) fn new(
+            https: hyper_rustls::HttpsConnector<HttpConnector<R>>,
+            tls_config: rustls::ClientConfig,
+            proxy_config: ProxyConfig,
+        ) -> Self {
+            // Pre-compute the proxy matcher once during construction
+            let proxy_matcher = if proxy_config.is_disabled() {
+                None
+            } else {
+                Some(Arc::new(proxy_config.into_hyper_util_matcher()))
+            };
+
+            Self {
+                https,
+                tls_config: Arc::new(tls_config),
+                proxy_matcher,
+            }
+        }
+    }
+
+    impl<R> Service<Uri> for RustTlsConnector<R>
+    where
+        R: Clone + Send + Sync + 'static,
+        R: Service<hyper_util::client::legacy::connect::dns::Name>,
+        R::Response: Iterator<Item = std::net::SocketAddr>,
+        R::Future: Send,
+        R::Error: Into<Box<dyn Error + Send + Sync>>,
+    {
+        type Response = Conn;
+        type Error = BoxError;
+        type Future = Connecting;
+
+        fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+            self.https.poll_ready(cx).map_err(Into::into)
+        }
+
+        fn call(&mut self, dst: Uri) -> Self::Future {
+            // Check if this request should be proxied using pre-computed matcher
+            let proxy_intercept = if let Some(ref matcher) = self.proxy_matcher {
+                matcher.intercept(&dst)
+            } else {
+                None
+            };
+
+            if let Some(intercept) = proxy_intercept {
+                if dst.scheme() == Some(&Scheme::HTTPS) {
+                    // HTTPS through HTTP proxy: Use CONNECT tunneling + manual TLS
+                    self.handle_https_through_proxy(dst, intercept)
+                } else {
+                    // HTTP through proxy: Direct connection to proxy
+                    self.handle_http_through_proxy(dst, intercept)
+                }
+            } else {
+                // Direct connection: Use the existing HTTPS connector
+                self.handle_direct_connection(dst)
+            }
+        }
+    }
+
+    impl<R> RustTlsConnector<R>
+    where
+        R: Clone + Send + Sync + 'static,
+        R: Service<hyper_util::client::legacy::connect::dns::Name>,
+        R::Response: Iterator<Item = std::net::SocketAddr>,
+        R::Future: Send,
+        R::Error: Into<Box<dyn Error + Send + Sync>>,
+    {
+        fn handle_direct_connection(&mut self, dst: Uri) -> Connecting {
+            let fut = self.https.call(dst);
+            Box::pin(async move {
+                let conn = fut.await.map_err(classify_rustls)?;
+                Ok(Conn {
+                    inner: Box::new(conn),
+                    connect_path: ConnectPathInner::Direct,
+                })
+            })
+        }
+
+        fn handle_http_through_proxy(
+            &mut self,
+            _dst: Uri,
+            intercept: hyper_util::client::proxy::matcher::Intercept,
+        ) -> Connecting {
+            // For HTTP through proxy, connect to the proxy and let it handle the request
+            let proxy_uri = intercept.uri().clone();
+            let connect_path = ConnectPathInner::forward_proxy(intercept.basic_auth().cloned());
+            let fut = self.https.call(proxy_uri);
+            Box::pin(async move {
+                let conn = fut.await?;
+                Ok(Conn {
+                    inner: Box::new(conn),
+                    connect_path,
+                })
+            })
+        }
+
+        fn handle_https_through_proxy(
+            &mut self,
+            dst: Uri,
+            intercept: hyper_util::client::proxy::matcher::Intercept,
+        ) -> Connecting {
+            use rustls_pki_types::ServerName as RustlsServerName;
+            // For HTTPS through HTTP proxy, we need to:
+            // 1. Establish CONNECT tunnel using the HTTPS connector
+            // 2. Perform manual TLS handshake over the tunneled stream
+
+            let tunnel = hyper_util::client::legacy::connect::proxy::Tunnel::new(
+                intercept.uri().clone(),
+                self.https.clone(),
+            );
+
+            // Configure tunnel with authentication if present
+            let mut tunnel = if let Some(auth) = intercept.basic_auth() {
+                tunnel.with_auth(auth.clone())
+            } else {
+                tunnel
+            };
+
+            let tls_config = self.tls_config.clone();
+            let dst_clone = dst.clone();
+
+            Box::pin(async move {
+                // Establish CONNECT tunnel
+                tracing::trace!("tunneling HTTPS over proxy");
+                let tunneled = tunnel.call(dst_clone.clone()).await?;
+
+                // Stage 2: Manual TLS handshake over tunneled stream
+                let host = dst_clone
+                    .host()
+                    .ok_or("missing host in URI for TLS handshake")?;
+
+                let server_name = RustlsServerName::try_from(host.to_owned()).map_err(|e| {
+                    BoxError::from(format!("invalid server name for TLS handshake: {e}"))
+                })?;
+
+                let tls_connector = tokio_rustls::TlsConnector::from(tls_config)
+                    .connect(server_name, TokioIo::new(tunneled))
+                    .await
+                    .map_err(|error| classify_rustls(error.into()))?;
+
+                Ok(Conn {
+                    inner: Box::new(RustTlsConn {
+                        inner: TokioIo::new(tls_connector),
+                    }),
+                    connect_path: ConnectPathInner::ProxyTunnel,
+                })
+            })
+        }
+    }
+
+    pin_project! {
+        pub(crate) struct RustTlsConn<T> {
+            #[pin] pub(super) inner: TokioIo<TlsStream<T>>
+        }
+    }
+
+    impl Connection for RustTlsConn<TokioIo<TokioIo<TcpStream>>> {
+        fn connected(&self) -> Connected {
+            if self.inner.inner().get_ref().1.alpn_protocol() == Some(b"h2") {
+                self.inner
+                    .inner()
+                    .get_ref()
+                    .0
+                    .inner()
+                    .connected()
+                    .negotiated_h2()
+            } else {
+                self.inner.inner().get_ref().0.inner().connected()
+            }
+        }
+    }
+
+    impl Connection for RustTlsConn<TokioIo<MaybeHttpsStream<TokioIo<TcpStream>>>> {
+        fn connected(&self) -> Connected {
+            if self.inner.inner().get_ref().1.alpn_protocol() == Some(b"h2") {
+                self.inner
+                    .inner()
+                    .get_ref()
+                    .0
+                    .inner()
+                    .connected()
+                    .negotiated_h2()
+            } else {
+                self.inner.inner().get_ref().0.inner().connected()
+            }
+        }
+    }
+    impl<T: AsyncRead + AsyncWrite + Unpin> Read for RustTlsConn<T> {
+        fn poll_read(
+            self: Pin<&mut Self>,
+            cx: &mut Context<'_>,
+            buf: ReadBufCursor<'_>,
+        ) -> Poll<tokio::io::Result<()>> {
+            let this = self.project();
+            Read::poll_read(this.inner, cx, buf)
+        }
+    }
+
+    impl<T: AsyncRead + AsyncWrite + Unpin> Write for RustTlsConn<T> {
+        fn poll_write(
+            self: Pin<&mut Self>,
+            cx: &mut Context<'_>,
+            buf: &[u8],
+        ) -> Poll<Result<usize, tokio::io::Error>> {
+            let this = self.project();
+            Write::poll_write(this.inner, cx, buf)
+        }
+
+        fn poll_write_vectored(
+            self: Pin<&mut Self>,
+            cx: &mut Context<'_>,
+            bufs: &[IoSlice<'_>],
+        ) -> Poll<Result<usize, io::Error>> {
+            let this = self.project();
+            Write::poll_write_vectored(this.inner, cx, bufs)
+        }
+
+        fn is_write_vectored(&self) -> bool {
+            self.inner.is_write_vectored()
+        }
+
+        fn poll_flush(
+            self: Pin<&mut Self>,
+            cx: &mut Context<'_>,
+        ) -> Poll<Result<(), tokio::io::Error>> {
+            let this = self.project();
+            Write::poll_flush(this.inner, cx)
+        }
+
+        fn poll_shutdown(
+            self: Pin<&mut Self>,
+            cx: &mut Context<'_>,
+        ) -> Poll<Result<(), tokio::io::Error>> {
+            let this = self.project();
+            Write::poll_shutdown(this.inner, cx)
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use rustls::CertificateError;
+
+        #[test]
+        fn rustls_rejection_is_tagged_protocol() {
+            // hyper-rustls wraps tokio-rustls's `InvalidData` error in `io::Error::other`.
+            let rejection = io::Error::other(io::Error::new(
+                io::ErrorKind::InvalidData,
+                rustls::Error::InvalidCertificate(CertificateError::UnknownIssuer),
+            ));
+
+            let error = classify_rustls(rejection.into());
+
+            let tls = error
+                .downcast_ref::<TlsConnectError>()
+                .expect("a rustls rejection is tagged");
+            assert_eq!(TlsConnectErrorKind::Protocol, tls.kind());
+            assert!(
+                error_chain(tls).any(|error| error.is::<rustls::Error>()),
+                "the tag keeps the rustls error in its source chain"
+            );
+        }
+
+        #[test]
+        fn handshake_eof_passes_through_untagged() {
+            let eof = io::Error::new(io::ErrorKind::UnexpectedEof, "tls handshake eof");
+
+            let error = classify_rustls(eof.into());
+
+            assert!(!error.is::<TlsConnectError>());
+            let io = error
+                .downcast_ref::<io::Error>()
+                .expect("the I/O error is returned unchanged");
+            assert_eq!(io::ErrorKind::UnexpectedEof, io.kind());
+        }
+    }
+}

@@ -1,0 +1,73 @@
+cargo-llvm-cov-show-env
+Output the environment set by cargo-llvm-cov to build Rust projects
+
+USAGE:
+    cargo llvm-cov show-env [OPTIONS]
+
+OPTIONS:
+        --sh, --export-prefix
+            Make output suitable to be sourced by POSIX sh, Bash, and Zsh
+
+        --pwsh, --with-pwsh-env-prefix
+            Make output suitable to be used with Invoke-Expression in PowerShell 6+
+
+        --cmd
+            Make output suitable to be called by cmd.exe
+
+        --csh
+            Make output suitable to be sourced by csh and tcsh
+
+        --fish
+            Make output suitable to be sourced by fish
+
+        --nu
+            Make output suitable to be sourced by nushell
+
+        --xonsh
+            Make output suitable to be sourced by xonsh
+
+        --doctests
+            Including doc tests (unstable)
+
+            This flag is unstable. See <https://github.com/taiki-e/cargo-llvm-cov/issues/2> for
+            more.
+
+        --target <TRIPLE>
+            Build for the target triple
+
+        --coverage-target-only
+            Activate coverage reporting only for the target triple
+
+            Activate coverage reporting only for the target triple specified via `--target`. This is
+            important, if the project uses multiple targets via the cargo bindeps feature, and not
+            all targets can use `instrument-coverage`, e.g. a microkernel, or an embedded binary.
+
+            When this flag is used, coverage for proc-macro and build script will not be displayed.
+
+        --coverage-host-only
+            Activate coverage reporting only for the host target triple
+
+            In cross-compilation builds, this can be used to get coverage for build scripts and
+            proc-macro while skipping coverage for the cross-compiled target which may not support
+            `instrument-coverage`.
+
+        --remap-path-prefix
+            Use --remap-path-prefix for workspace root
+
+            Note that this does not fully compatible with doctest.
+
+        --include-ffi
+            Include coverage of C/C++ code linked to Rust library/binary
+
+            Note that `CC`/`CXX`/`LLVM_COV`/`LLVM_PROFDATA` environment variables must be set to
+            Clang/LLVM compatible with the LLVM version used in rustc.
+
+        --no-cfg-coverage
+            Unset cfg(coverage), which is enabled when code is built using cargo-llvm-cov
+
+        --no-cfg-coverage-nightly
+            Unset cfg(coverage_nightly), which is enabled when code is built using cargo-llvm-cov
+            and nightly compiler
+
+    -h, --help
+            Print help information

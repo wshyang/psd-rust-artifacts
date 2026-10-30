@@ -1,0 +1,12 @@
+    1|      1|pub fn say_hello_goodby() {
+    2|      1|    crate_a::say_hello();
+    3|      1|    println!("Goodby!");
+    4|      1|}
+    5|       |
+    6|       |#[cfg(test)]
+    7|       |mod test {
+    8|       |    #[test]
+    9|      1|    fn test_say_hello_goodby() {
+   10|      1|        super::say_hello_goodby();
+   11|      1|    }
+   12|       |}

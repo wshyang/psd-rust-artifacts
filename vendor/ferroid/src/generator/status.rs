@@ -1,0 +1,55 @@
+use crate::id::Id;
+
+/// Represents the result of attempting to generate a new ID.
+///
+/// This type models the outcome of generator polling APIs such as
+/// [`crate::generator::SnowflakeGenerator::try_poll_id`] and
+/// [`crate::generator::UlidGenerator::try_poll_id`]:
+///
+/// - [`Poll::Ready`] indicates a new ID was successfully generated.
+/// - [`Poll::Pending`] means the generator is throttled and cannot produce a
+///   new ID until the time source advances past `yield_for`.
+///
+/// This allows non-blocking generation loops and clean backoff strategies.
+///
+/// # Example
+/// ```
+/// use ferroid::{
+///     generator::{BasicSnowflakeGenerator, Poll},
+///     id::{SnowflakeId, SnowflakeTwitterId},
+/// };
+///
+/// struct FixedTime;
+/// impl ferroid::time::TimeSource<u64> for FixedTime {
+///     fn current_millis(&self) -> u64 {
+///         1
+///     }
+/// }
+///
+/// let generator = BasicSnowflakeGenerator::<SnowflakeTwitterId, _>::from_components(
+///     0,
+///     1,
+///     SnowflakeTwitterId::max_sequence(),
+///     FixedTime,
+/// );
+/// match generator.poll_id() {
+///     Poll::Ready { id } => println!("ID: {}", id.timestamp()),
+///     Poll::Pending { yield_for } => println!("Back off for: {yield_for}"),
+/// }
+/// ```
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Poll<T: Id> {
+    /// A new ID was successfully generated.
+    Ready {
+        /// The generated ID.
+        id: T,
+    },
+    /// The generator is not ready to produce a new ID yet.
+    ///
+    /// Wait for the specified number of time-source units (`yield_for`) before
+    /// trying again.
+    Pending {
+        /// Time-source units to wait before the next attempt.
+        yield_for: T::Ty,
+    },
+}

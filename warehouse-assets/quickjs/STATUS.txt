@@ -1,0 +1,3 @@
+Upstream QuickJS-ng v0.18.0 modules, NOT the hardened application Function runner.
+App bootstrap, deterministic imports, typed I/O, limits, dayjs/UTC plugin, big.js,
+runner_build and red-team validation remain implementation requirements.

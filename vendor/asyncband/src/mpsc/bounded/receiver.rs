@@ -1,0 +1,160 @@
+// Licensed to the Apache Software Foundation (ASF) under one
+// or more contributor license agreements.  See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.  The ASF licenses this file
+// to you under the Apache License, Version 2.0 (the
+// "License"); you may not use this file except in compliance
+// with the License.  You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
+use std::fmt;
+use std::future::poll_fn;
+use std::mem;
+use std::sync::Arc;
+use std::task::Context;
+use std::task::Poll;
+
+use crate::internal::mutex::Mutex;
+use crate::internal::register_waker;
+use crate::internal::waitlist::WaitList;
+use crate::mpsc::RecvError;
+use crate::mpsc::TryRecvError;
+use crate::mpsc::bounded::State;
+
+/// The receiving endpoint of a bounded mpsc channel.
+///
+/// Instances are created by the [`bounded`](crate::mpsc::bounded) function. Dropping the receiver
+/// discards queued values and causes pending `send` and `reserve` operations to fail.
+pub struct BoundedReceiver<T> {
+    shared: Arc<Mutex<State<T>>>,
+}
+
+impl<T> fmt::Debug for BoundedReceiver<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("BoundedReceiver").finish_non_exhaustive()
+    }
+}
+
+impl<T> Drop for BoundedReceiver<T> {
+    fn drop(&mut self) {
+        let (queue, recv_waker, mut waiters) = {
+            let mut state = self.shared.lock();
+            state.receiver = false;
+            let queue = mem::take(&mut state.queue);
+            let recv_waker = state.recv_waker.take();
+            // The disconnected state invalidates both queued and granted waiter IDs.
+            let waiters = mem::replace(&mut state.send_waiters, WaitList::new());
+            (queue, recv_waker, waiters)
+        };
+        // Notify blocked senders before destroying buffered values, whose destructors may panic.
+        while let Some((_, waiter)) = waiters.unlink_first_waiter(|_| true) {
+            if let Some(waker) = waiter.waker.take() {
+                waker.wake();
+            }
+        }
+        drop(recv_waker);
+        drop(queue);
+    }
+}
+
+impl<T> BoundedReceiver<T> {
+    pub(super) fn new(shared: Arc<Mutex<State<T>>>) -> Self {
+        Self { shared }
+    }
+
+    /// Attempts to receive the next queued value without waiting for a new message.
+    ///
+    /// Receiving a value frees one buffer slot. An empty channel returns [`TryRecvError::Empty`]
+    /// while at least one sender remains, or [`TryRecvError::Disconnected`] after every sender has
+    /// been dropped and all queued values have been consumed.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use asyncband::mpsc::TryRecvError;
+    /// use asyncband::mpsc::bounded;
+    ///
+    /// let (tx, mut rx) = bounded(2);
+    /// tx.try_send("first").unwrap();
+    /// tx.try_send("second").unwrap();
+    ///
+    /// assert_eq!(rx.try_recv(), Ok("first"));
+    /// assert_eq!(rx.try_recv(), Ok("second"));
+    /// assert_eq!(rx.try_recv(), Err(TryRecvError::Empty));
+    /// drop(tx);
+    /// assert_eq!(rx.try_recv(), Err(TryRecvError::Disconnected));
+    /// ```
+    pub fn try_recv(&mut self) -> Result<T, TryRecvError> {
+        let (value, wake) = self.shared.lock().pop()?;
+        if let Some(waker) = wake {
+            waker.wake();
+        }
+        Ok(value)
+    }
+
+    /// Waits for and receives the next value, freeing one buffer slot.
+    ///
+    /// If no value is queued, this method waits until a sender adds one or the last sender is
+    /// dropped. It returns [`RecvError::Disconnected`] only after all senders are gone and the
+    /// buffer has been drained.
+    ///
+    /// # Cancel safety
+    ///
+    /// Dropping a pending `recv` future does not remove a message from the channel. A subsequent
+    /// `recv` future can still observe the next queued value, so these futures may safely be raced
+    /// with other futures in a selection construct.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[tokio::main]
+    /// # async fn main() {
+    /// use asyncband::mpsc;
+    /// let (tx, mut rx) = mpsc::bounded(2);
+    ///
+    /// tx.send("first").await.unwrap();
+    /// tx.send("second").await.unwrap();
+    /// drop(tx);
+    ///
+    /// assert_eq!(rx.recv().await, Ok("first"));
+    /// assert_eq!(rx.recv().await, Ok("second"));
+    /// assert_eq!(rx.recv().await, Err(mpsc::RecvError::Disconnected));
+    /// # }
+    /// ```
+    pub async fn recv(&mut self) -> Result<T, RecvError> {
+        poll_fn(|cx| self.poll_recv(cx)).await
+    }
+
+    fn poll_recv(&mut self, cx: &mut Context<'_>) -> Poll<Result<T, RecvError>> {
+        let mut state = self.shared.lock();
+        match state.pop() {
+            Ok((value, wake)) => {
+                drop(state);
+                if let Some(waker) = wake {
+                    waker.wake();
+                }
+                Poll::Ready(Ok(value))
+            }
+            Err(TryRecvError::Disconnected) => {
+                let old = state.recv_waker.take();
+                drop(state);
+                drop(old);
+                Poll::Ready(Err(RecvError::Disconnected))
+            }
+            Err(TryRecvError::Empty) => {
+                let old = register_waker(&mut state.recv_waker, cx.waker());
+                drop(state);
+                drop(old);
+                Poll::Pending
+            }
+        }
+    }
+}

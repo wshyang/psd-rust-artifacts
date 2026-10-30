@@ -1,0 +1,31 @@
+{
+  "compiler": "1.102.0-nightly (5b7b37aef 2026-11-08)",
+  "components": [
+    {
+      "component": "rustc",
+      "sha256": "b81f26aaa2c30ffef13c586201c2123eb39069f3ffe32d9e44c0f281ed69d858",
+      "url": "https://static.rust-lang.org/dist/2026-11-09/rustc-nightly-x86_64-unknown-linux-gnu.tar.xz"
+    },
+    {
+      "component": "cargo",
+      "sha256": "e1ef4fe55261a52233900764007b5f62046afbbe7a441bf347654578f5e70c18",
+      "url": "https://static.rust-lang.org/dist/2026-11-09/cargo-nightly-x86_64-unknown-linux-gnu.tar.xz"
+    },
+    {
+      "component": "rust-std",
+      "sha256": "c790651617e998ddde02f794efa86eab8bcc1f0a328028942c30c8e05da9d764",
+      "url": "https://static.rust-lang.org/dist/2026-11-09/rust-std-nightly-x86_64-unknown-linux-gnu.tar.xz"
+    },
+    {
+      "component": "llvm-tools-preview",
+      "sha256": "359241a9b267d84ff6bf945f905378b902bf19f17f48f7dddea09955ee816222",
+      "url": "https://static.rust-lang.org/dist/2026-11-09/llvm-tools-nightly-x86_64-unknown-linux-gnu.tar.xz"
+    },
+    {
+      "component": "rust-src",
+      "sha256": "68598aa23a0fe6699b6da875656f2f9ec78bb810bfb75c645505f74abf03e77f",
+      "url": "https://static.rust-lang.org/dist/2026-11-09/rust-src-nightly.tar.xz"
+    }
+  ],
+  "manifest_sha256": "61ad7ceb52dafd0ef49bfe0a379259d2587039e840986021c49df008640e0d23"
+}

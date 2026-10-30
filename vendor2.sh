@@ -1,0 +1,361 @@
+#!/bin/bash
+set -euo pipefail
+
+# Run beside this script, regardless of the caller's current directory.
+cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
+
+command -v cargo >/dev/null 2>&1 || {
+    echo "Error: install/activate the Rust 1.99.1 toolchain first." >&2
+    exit 1
+}
+
+VENDOR_DIR="vendor"
+CARGO_CONFIG_DIR=".cargo"
+CARGO_CONFIG_FILE="$CARGO_CONFIG_DIR/config.toml"
+
+# Keep the previous manifest, lockfile and local Cargo config on failure.
+# The temporary directory is removed on exit; no extra workspace is created.
+TMP_DIR="$(mktemp -d ./.vendor-cache.XXXXXX)"
+mkdir -p "$TMP_DIR/.cargo"
+
+for file in Cargo.toml Cargo.lock "$CARGO_CONFIG_FILE"; do
+    if [[ -f "$file" ]]; then
+        cp -p -- "$file" "$TMP_DIR/$file"
+    fi
+done
+
+SUCCESS=0
+
+cleanup() {
+    status=$?
+    trap - EXIT
+
+    if [[ "$SUCCESS" -ne 1 ]]; then
+        for file in Cargo.toml Cargo.lock "$CARGO_CONFIG_FILE"; do
+            if [[ -f "$TMP_DIR/$file" ]]; then
+                mkdir -p -- "$(dirname -- "$file")"
+                cp -p -- "$TMP_DIR/$file" "$file"
+            else
+                rm -f -- "$file"
+            fi
+        done
+    fi
+
+    rm -rf -- "$TMP_DIR"
+    exit "$status"
+}
+
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+# A previous run enables offline mode AND source replacement.
+# Remove this local config temporarily so new dependencies resolve online.
+rm -f -- "$CARGO_CONFIG_FILE"
+
+# Self-contained, flat collection:
+# no application-specific members or optional feature groups.
+echo "Writing the consolidated vendor-cache Cargo.toml..."
+
+cat > Cargo.toml <<'CARGO_TOML'
+[package]
+name = "vendor-cache"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.99.1"
+publish = false
+description = "Consolidated dummy package for vendoring offline dependencies"
+
+[workspace]
+resolver = "3"
+
+[dependencies]
+
+# -------------------------------------------------------------------------
+# Web Framework & HTTP
+# -------------------------------------------------------------------------
+axum = { version = "=0.7.9", features = ["macros", "multipart", "http2"] }
+axum-extra = { version = "0.9", features = ["cookie", "cookie-private", "cookie-signed", "typed-header", "query", "attachment"] }
+tower = { version = "0.5", features = ["full", "util"] }
+tower-http = { version = "0.6", features = ["cors", "fs", "trace", "limit", "request-id", "set-header", "sensitive-headers", "timeout", "compression-gzip", "compression-br", "compression-zstd"] }
+http = "1"
+http-body-util = "0.1"
+bytes = "1"
+multer = "3"
+reqwest = { version = "0.13", default-features = false, features = ["json", "rustls", "query", "multipart", "cookies", "stream"] }
+
+# -------------------------------------------------------------------------
+# Async Runtime
+# -------------------------------------------------------------------------
+tokio = { version = "1", features = ["full", "test-util"] }
+tokio-util = { version = "0.7", features = ["rt", "io", "codec"] }
+async-trait = "0.1"
+futures = "0.3"
+
+# -------------------------------------------------------------------------
+# Database
+# -------------------------------------------------------------------------
+sea-orm = { version = "1", features = [
+    "sqlx-postgres",
+    "runtime-tokio-rustls",
+    "macros",
+    "with-uuid",
+    "with-chrono",
+    "with-json",
+] }
+
+sqlx = { version = "=0.8.6", default-features = false, features = [
+    "runtime-tokio-rustls",
+    "postgres",
+    "uuid",
+    "chrono",
+    "json",
+    "rust_decimal",
+    "macros",
+    "migrate"
+] }
+
+# -------------------------------------------------------------------------
+# Temporalio SDK (Strictly Pinned)
+# -------------------------------------------------------------------------
+temporalio-sdk = { version = "=1.1.2", default-features = false, features = ["testing", "opentelemetry", "otel", "prometheus"] }
+temporalio-client = { version = "=1.1.2", default-features = false, features = ["tls-ring", "vendored-protox", "telemetry"] }
+temporalio-macros = "=1.1.2"
+temporalio-workflow = "=1.1.2"
+temporalio-common = { version = "=1.1.2", default-features = false, features = ["serde_serialize", "vendored-protox"] }
+temporalio-common-wasm = "=1.1.2"
+temporalio-sdk-core = { version = "=0.10.2", default-features = false, features = ["tls-ring", "ephemeral-server"] }
+temporalio-protos = { version = "=0.10.2", features = ["grpc-clients", "serde_serialize", "vendored-protox"] }
+
+# -------------------------------------------------------------------------
+# Wasmtime Engines
+# -------------------------------------------------------------------------
+wasmtime = { version = "=50.0.1", default-features = false, features = ["cranelift", "runtime", "std", "wat"] }
+wasmtime-wasi = { version = "=50.0.1", default-features = false, features = ["p1"] }
+
+# -------------------------------------------------------------------------
+# Serialization & Data Types
+# -------------------------------------------------------------------------
+serde = { version = "1", features = ["derive", "rc"] }
+serde_json = { version = "1", features = ["raw_value"] }
+uuid = { version = "1.18", default-features = false, features = ["std", "serde", "v7"] }
+chrono = { version = "0.4", default-features = false, features = ["std", "serde", "clock"] }
+rust_decimal = { version = "1", default-features = false, features = ["std", "serde-str"] }
+utoipa = { version = "5", features = ["axum_extras", "chrono", "decimal", "uuid"] }
+indexmap = { version = "2", features = ["serde"] }
+
+# -------------------------------------------------------------------------
+# Crypto, Auth & Security
+# -------------------------------------------------------------------------
+argon2 = "0.5"
+pbkdf2 = { version = "0.12", features = ["simple"] }
+sha2 = "0.10"
+sha1 = "0.10"
+hmac = "0.12"
+hex = "0.4"
+rand = "0.10"
+subtle = "2"
+constant_time_eq = "0.3"
+totp-rs = { version = "5", features = ["gen_secret", "qr"] }
+base32 = "0.4"
+rsa = { version = "0.9", features = ["sha2"] }
+aes-gcm = "0.10.3"
+base64 = "0.21"
+jsonwebtoken = "9"
+
+# -------------------------------------------------------------------------
+# Email & HTML Processing
+# -------------------------------------------------------------------------
+lettre = { version = "0.11", features = ["smtp-transport", "tokio1-native-tls", "builder", "hostname"] }
+handlebars = "6"
+ammonia = "4.0"
+html5ever = "0.27"
+markup5ever_rcdom = "0.3"
+
+# -------------------------------------------------------------------------
+# Utils, Config, Logging & Formats
+# -------------------------------------------------------------------------
+dotenvy = "0.15"
+config = "0.14"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+validator = { version = "0.18", features = ["derive"] }
+url = "2"
+regex = "1"
+yaml-rust2 = "0.8.1"
+zstd = "0.13"
+flate2 = "1"
+csv = "1"
+clap = { version = "4", features = ["derive", "env"] }
+
+# -------------------------------------------------------------------------
+# Error Handling
+# -------------------------------------------------------------------------
+thiserror = "2"
+anyhow = "1"
+
+# -------------------------------------------------------------------------
+# AWS SDK
+# -------------------------------------------------------------------------
+aws-config = { version = "1", features = ["behavior-version-latest"] }
+aws-sdk-s3 = "1"
+aws-sdk-sts = "1"
+aws-sdk-ssm = "1"
+aws-sdk-ses = "1"
+
+# -------------------------------------------------------------------------
+# Additional HTTP, Serialization & Source Handling
+# -------------------------------------------------------------------------
+cookie = "=0.18.2"
+serde_urlencoded = { version = "=0.7.1" }
+percent-encoding = { version = "=2.3.2" }
+mime = "=0.3.18"
+mime_guess = { version = "=2.0.5" }
+infer = { version = "=0.22.0", default-features = false, features = ["alloc"] }
+serde_path_to_error = "=0.1.20"
+serde_with = { version = "=3.24.0", default-features = false, features = ["std", "macros", "chrono_0_4", "json", "base64", "hex"] }
+serde_bytes = { version = "=0.11.19" }
+encoding_rs = { version = "=0.8.44" }
+unicode-normalization = "=0.1.26"
+unicode-segmentation = { version = "=1.13.3" }
+similar = { version = "=3.2.1", default-features = false, features = ["std", "text"] }
+json-patch = { version = "=5.0.0", default-features = false, features = ["diff"] }
+jsonschema = { version = "=0.61.1", default-features = false }
+
+# -------------------------------------------------------------------------
+# Additional Async, Host State & Rate Limiting
+# -------------------------------------------------------------------------
+futures-util = { version = "=0.3.34", features = ["sink"] }
+tokio-stream = { version = "=0.1.19", default-features = false, features = ["sync", "time"] }
+dashmap = { version = "=6.2.1" }
+parking_lot = { version = "=0.13.0" }
+moka = { version = "=0.12.16", default-features = false, features = ["future", "sync"] }
+governor = { version = "=0.10.4", default-features = false, features = ["std", "dashmap"] }
+
+# -------------------------------------------------------------------------
+# Additional Security & Archive Support
+# -------------------------------------------------------------------------
+rand_core = { version = "=0.6.4", features = ["getrandom"] }
+secrecy = "=0.10.3"
+zeroize = { version = "=1.9.1", features = ["derive"] }
+rustls = { version = "=0.23.46", default-features = false, features = ["std", "ring", "tls12"] }
+rustls-pemfile = { version = "=2.2.0" }
+prost = "=0.14.5"
+tar = { version = "=0.4.46" }
+zip = { version = "=9.5.1", default-features = false, features = ["deflate-flate2", "zstd"] }
+
+# -------------------------------------------------------------------------
+# Additional Observability & Operator Tooling
+# -------------------------------------------------------------------------
+metrics = { version = "=0.24.6" }
+metrics-exporter-prometheus = { version = "=0.18.3", default-features = false }
+tracing-appender = { version = "=0.2.5" }
+tracing-error = { version = "=0.2.1" }
+opentelemetry = { version = "=0.32.0", default-features = false, features = ["trace", "metrics"] }
+opentelemetry_sdk = { version = "=0.32.1", default-features = false, features = ["trace", "metrics", "rt-tokio"] }
+opentelemetry-otlp = { version = "=0.32.0", default-features = false, features = ["trace", "metrics", "grpc-tonic", "tls-ring", "tls-webpki-roots"] }
+tracing-opentelemetry = { version = "=0.33.0", default-features = false, features = ["metrics"] }
+console-subscriber = { version = "=0.5.0" }
+clap_complete = { version = "=4.6.11" }
+directories = { version = "=6.0.0" }
+notify = { version = "=8.2.2" }
+globset = { version = "=0.4.21" }
+
+# -------------------------------------------------------------------------
+# Actual GoRules ZEN, Native QuickJS & WASM Tooling
+# -------------------------------------------------------------------------
+zen-engine = { version = "=2.1.7", default-features = false, features = ["arbitrary_precision"] }
+zen-expression = { version = "=2.1.7", default-features = false, features = ["regex-deprecated", "arbitrary_precision"] }
+zen-types = { version = "=2.1.7", features = ["arbitrary_precision"] }
+zen-tmpl = { version = "=2.1.7", features = ["arbitrary_precision"] }
+zen-macros = { version = "=2.1.7" }
+
+rquickjs = { version = "=0.10.0", features = ["full-async", "rust-alloc", "array-buffer", "classes", "properties", "parallel"] }
+rquickjs-core = { version = "=0.10.0" }
+rquickjs-sys = { version = "=0.10.0" }
+rquickjs-macro = { version = "=0.10.0" }
+
+wasmparser = { version = "=0.261.0" }
+wasmprinter = { version = "=0.261.0" }
+wat = { version = "=1.261.0" }
+
+# -------------------------------------------------------------------------
+# Additional Version Lines (original dependencies retained)
+# -------------------------------------------------------------------------
+base64-022 = { package = "base64", version = "=0.22.1" }
+config-015 = { package = "config", version = "=0.15.27", default-features = false, features = ["toml", "json"] }
+
+# -------------------------------------------------------------------------
+# Dev/Test Dependencies (Included in cargo vendor)
+# -------------------------------------------------------------------------
+[dev-dependencies]
+proptest = "1"
+rstest = "0.26"
+insta = { version = "1", features = ["json", "redactions"] }
+tempfile = "3"
+cargo_metadata = "0.23"
+toml = "1"
+walkdir = "2"
+trybuild = "1"
+arbitrary = { version = "1", features = ["derive"] }
+libfuzzer-sys = "0.4"
+
+# Additional test/benchmark/fitness helpers.
+assert_cmd = { version = "=2.2.2" }
+predicates = { version = "=3.1.4" }
+assert_matches = { version = "=1.5.0" }
+pretty_assertions = { version = "=1.4.1" }
+test-case = { version = "=3.4.1" }
+serial_test = { version = "=4.0.1", features = ["file_locks"] }
+wiremock = { version = "=0.6.5" }
+
+testcontainers = { version = "=0.27.3", default-features = false, features = ["ring"] }
+testcontainers-modules = { version = "=0.15.0", default-features = false, features = ["postgres", "ring"] }
+
+criterion = { version = "=0.8.2", default-features = false, features = ["cargo_bench_support", "async_tokio", "html_reports", "plotters"] }
+loom = { version = "=0.7.3" }
+syn = { version = "=2.0.119", features = ["full", "visit"] }
+CARGO_TOML
+
+echo "Creating a dummy src/lib.rs so Cargo recognizes this as a valid package..."
+mkdir -p src
+touch src/lib.rs
+
+echo "Generating Cargo.lock and downloading registry data..."
+
+# Preserve the original script's refresh behaviour.
+# Archive the resulting lockfile for replication:
+# rerunning cargo update can change loosely constrained versions.
+CARGO_NET_OFFLINE=false cargo update
+
+echo "Vendoring all crates.io dependencies into the '$VENDOR_DIR' directory..."
+mkdir -p "$CARGO_CONFIG_DIR"
+
+# Keep previously cached crates and write configuration atomically.
+CARGO_NET_OFFLINE=false cargo vendor --locked --no-delete "$VENDOR_DIR" \
+    > "$TMP_DIR/config.toml"
+
+echo "Configuring Cargo for strict offline mode..."
+
+cat <<'EOF' >> "$TMP_DIR/config.toml"
+
+# Prevent Cargo from attempting any network requests
+[net]
+offline = true
+EOF
+
+mv -- "$TMP_DIR/config.toml" "$CARGO_CONFIG_FILE"
+
+echo "Checking that the dependency graph resolves from the offline cache..."
+
+CARGO_NET_OFFLINE=true cargo metadata \
+    --offline \
+    --locked \
+    --format-version 1 \
+    > /dev/null
+
+SUCCESS=1
+
+echo "Done! All resolved dependencies are cached in '$VENDOR_DIR'."
+echo "Preserve Cargo.toml, Cargo.lock, .cargo/config.toml, src/ and vendor/ together."
+echo "External binaries, toolchains, container images and JS/WASM assets are separate."

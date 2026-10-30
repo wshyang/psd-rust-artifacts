@@ -1,0 +1,3677 @@
+[
+  {
+    "description": "ir: unevaluatedProperties:false beside properties is additionalProperties:false",
+    "schemas": [
+      {"type": "object", "properties": {"a": {"type": "string"}}, "unevaluatedProperties": false},
+      {"type": "object", "properties": {"a": {"type": "string"}}, "additionalProperties": false}
+    ],
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "propertyNames": {"const": "a"},
+      "properties": {"a": {"type": "string"}}
+    },
+    "tests": [
+      {"data": {"a": "x"}, "valid": true},
+      {"data": {"a": 1}, "valid": false},
+      {"data": {"b": "x"}, "valid": false},
+      {"data": {}, "valid": true}
+    ]
+  },
+  {
+    "description": "ir: unevaluatedProperties as a schema constrains the unnamed keys",
+    "schemas": [
+      {"type": "object", "properties": {"a": {"type": "string"}}, "unevaluatedProperties": {"type": "integer"}},
+      {"type": "object", "properties": {"a": {"type": "string"}}, "additionalProperties": {"type": "integer"}}
+    ],
+    "tests": [
+      {"data": {"a": "x", "b": 1}, "valid": true},
+      {"data": {"a": "x", "b": "y"}, "valid": false},
+      {"data": {"a": 1}, "valid": false}
+    ],
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": {
+        "type": "integer"
+      },
+      "properties": {
+        "a": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "description": "ir: unevaluatedProperties beside patternProperties is additionalProperties",
+    "schemas": [
+      {"type": "object", "patternProperties": {"^a": {"type": "integer"}}, "unevaluatedProperties": false},
+      {"type": "object", "patternProperties": {"^a": {"type": "integer"}}, "additionalProperties": false}
+    ],
+    "tests": [
+      {"data": {"ab": 1}, "valid": true},
+      {"data": {"ab": "x"}, "valid": false},
+      {"data": {"b": 1}, "valid": false}
+    ],
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "patternProperties": {
+        "^a": {
+          "type": "integer"
+        }
+      },
+      "propertyNames": {
+        "pattern": "^a",
+        "type": "string"
+      },
+      "type": "object"
+    }
+  },
+  {
+    "description": "ir: a live additionalProperties leaves unevaluatedProperties inert",
+    "schemas": [
+      {"type": "object", "properties": {"a": {}}, "additionalProperties": {"type": "integer"}, "unevaluatedProperties": false},
+      {"type": "object", "properties": {"a": {}}, "additionalProperties": {"type": "integer"}}
+    ],
+    "tests": [
+      {"data": {"a": "x", "b": 1}, "valid": true},
+      {"data": {"b": "x"}, "valid": false}
+    ],
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": {
+        "type": "integer"
+      },
+      "properties": {
+        "a": true
+      },
+      "type": "object"
+    }
+  },
+  {
+    "description": "ir: unevaluatedProperties in a nested schema degrades independently",
+    "schemas": [
+      {"type": "object", "properties": {"a": {"properties": {"b": {}}, "unevaluatedProperties": false}}},
+      {"type": "object", "properties": {"a": {"properties": {"b": {}}, "additionalProperties": false}}}
+    ],
+    "tests": [
+      {"data": {"a": {"b": 1}}, "valid": true},
+      {"data": {"a": {"c": 1}}, "valid": false}
+    ],
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "a": {
+          "anyOf": [
+            {
+              "type": [
+                "null",
+                "boolean",
+                "number",
+                "string",
+                "array"
+              ]
+            },
+            {
+              "propertyNames": {
+                "const": "b"
+              },
+              "type": "object"
+            }
+          ]
+        }
+      },
+      "type": "object"
+    }
+  },
+  {
+    "description": "ir: unevaluatedItems:false beside prefixItems is the tuple tail",
+    "schemas": [
+      {"type": "array", "prefixItems": [{"type": "integer"}], "unevaluatedItems": false},
+      {"type": "array", "prefixItems": [{"type": "integer"}], "items": false}
+    ],
+    "tests": [
+      {"data": [1], "valid": true},
+      {"data": ["x"], "valid": false},
+      {"data": [1, 2], "valid": false},
+      {"data": [], "valid": true}
+    ],
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "maxItems": 1,
+      "prefixItems": [
+        {
+          "type": "integer"
+        }
+      ],
+      "type": "array"
+    }
+  },
+  {
+    "description": "ir: unevaluatedItems with no tuple constrains every element",
+    "schemas": [
+      {"type": "array", "unevaluatedItems": {"type": "integer"}},
+      {"type": "array", "items": {"type": "integer"}}
+    ],
+    "tests": [
+      {"data": [1, 2], "valid": true},
+      {"data": [1, "x"], "valid": false}
+    ],
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "items": {
+        "type": "integer"
+      },
+      "type": "array"
+    }
+  },
+  {
+    "description": "ir: a schema-form items leaves unevaluatedItems inert",
+    "schemas": [
+      {"type": "array", "prefixItems": [{"type": "integer"}], "items": {"type": "string"}, "unevaluatedItems": false},
+      {"type": "array", "prefixItems": [{"type": "integer"}], "items": {"type": "string"}}
+    ],
+    "tests": [
+      {"data": [1, "x"], "valid": true},
+      {"data": [1, 2], "valid": false}
+    ],
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "items": {
+        "type": "string"
+      },
+      "prefixItems": [
+        {
+          "type": "integer"
+        }
+      ],
+      "type": "array"
+    }
+  },
+  {
+    "description": "ir: 2019-09 writes the tuple tail additionalItems",
+    "draft": "draft2019-09",
+    "schemas": [
+      {"type": "array", "items": [{"type": "integer"}], "unevaluatedItems": false},
+      {"type": "array", "items": [{"type": "integer"}], "additionalItems": false}
+    ],
+    "tests": [
+      {"data": [1], "valid": true},
+      {"data": [1, 2], "valid": false}
+    ],
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2019-09/schema",
+      "items": [
+        {
+          "type": "integer"
+        }
+      ],
+      "maxItems": 1,
+      "type": "array"
+    }
+  },
+  {
+    "description": "ir: 2019-09 a live additionalItems leaves unevaluatedItems inert",
+    "draft": "draft2019-09",
+    "schemas": [
+      {"type": "array", "items": [{"type": "integer"}], "additionalItems": {"type": "string"}, "unevaluatedItems": false},
+      {"type": "array", "items": [{"type": "integer"}], "additionalItems": {"type": "string"}}
+    ],
+    "tests": [
+      {"data": [1, "x"], "valid": true},
+      {"data": [1, 2], "valid": false}
+    ],
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2019-09/schema",
+      "additionalItems": {
+        "type": "string"
+      },
+      "items": [
+        {
+          "type": "integer"
+        }
+      ],
+      "type": "array"
+    }
+  },
+  {
+    "description": "ir: both unevaluated keywords degrade in one schema object",
+    "schemas": [
+      {"properties": {"a": {}}, "unevaluatedProperties": false, "prefixItems": [{}], "unevaluatedItems": false},
+      {"properties": {"a": {}}, "additionalProperties": false, "prefixItems": [{}], "items": false}
+    ],
+    "tests": [
+      {"data": {"a": 1}, "valid": true},
+      {"data": {"b": 1}, "valid": false},
+      {"data": [1], "valid": true},
+      {"data": [1, 2], "valid": false}
+    ],
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "anyOf": [
+        {
+          "type": [
+            "null",
+            "boolean",
+            "number",
+            "string"
+          ]
+        },
+        {
+          "maxItems": 1,
+          "type": "array"
+        },
+        {
+          "propertyNames": {
+            "const": "a"
+          },
+          "type": "object"
+        }
+      ]
+    }
+  },
+  {
+    "description": "ir: a lone alternative always contributes its keys",
+    "schema": {"anyOf": [{"properties": {"a": {}}}], "unevaluatedProperties": false},
+    "tests": [
+      {"data": {"a": 1}, "valid": true},
+      {"data": {"b": 1}, "valid": false}
+    ],
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "anyOf": [
+        {
+          "type": [
+            "null",
+            "boolean",
+            "number",
+            "string",
+            "array"
+          ]
+        },
+        {
+          "propertyNames": {
+            "const": "a"
+          },
+          "type": "object"
+        }
+      ]
+    }
+  },
+  {
+    "description": "ir: an allOf branch names the keys its unevaluatedProperties sibling must skip",
+    "schemas": [
+      {"allOf": [{"properties": {"a": {"type": "integer"}}}], "unevaluatedProperties": false},
+      {"allOf": [{"properties": {"a": {"type": "integer"}}}], "properties": {"a": true}, "additionalProperties": false}
+    ],
+    "tests": [
+      {"data": {"a": 1}, "valid": true},
+      {"data": {"a": "x"}, "valid": false},
+      {"data": {"b": 1}, "valid": false},
+      {"data": {}, "valid": true}
+    ],
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "anyOf": [
+        {
+          "type": [
+            "null",
+            "boolean",
+            "number",
+            "string",
+            "array"
+          ]
+        },
+        {
+          "properties": {
+            "a": {
+              "type": "integer"
+            }
+          },
+          "propertyNames": {
+            "const": "a"
+          },
+          "type": "object"
+        }
+      ]
+    }
+  },
+  {
+    "description": "ir: every allOf branch contributes, and nesting recurses",
+    "schemas": [
+      {"allOf": [{"properties": {"a": {}}}, {"allOf": [{"properties": {"b": {}}}]}], "unevaluatedProperties": false},
+      {"allOf": [{"properties": {"a": {}}}, {"allOf": [{"properties": {"b": {}}}]}], "properties": {"a": true, "b": true}, "additionalProperties": false}
+    ],
+    "tests": [
+      {"data": {"a": 1, "b": 2}, "valid": true},
+      {"data": {"c": 1}, "valid": false},
+      {"data": {}, "valid": true}
+    ],
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "anyOf": [
+        {
+          "type": [
+            "null",
+            "boolean",
+            "number",
+            "string",
+            "array"
+          ]
+        },
+        {
+          "propertyNames": {
+            "enum": [
+              "a",
+              "b"
+            ]
+          },
+          "type": "object"
+        }
+      ]
+    }
+  },
+  {
+    "description": "ir: an allOf branch pattern names the keys it reaches",
+    "schema": {"allOf": [{"patternProperties": {"^a": {"type": "integer"}}}], "unevaluatedProperties": false},
+    "tests": [
+      {"data": {"ab": 1}, "valid": true},
+      {"data": {"ab": "x"}, "valid": false},
+      {"data": {"b": 1}, "valid": false},
+      {"data": {}, "valid": true}
+    ],
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "anyOf": [
+        {
+          "type": [
+            "null",
+            "boolean",
+            "number",
+            "string",
+            "array"
+          ]
+        },
+        {
+          "patternProperties": {
+            "^a": {
+              "type": "integer"
+            }
+          },
+          "propertyNames": {
+            "pattern": "^a",
+            "type": "string"
+          },
+          "type": "object"
+        }
+      ]
+    }
+  },
+  {
+    "description": "ir: an allOf branch reaching every key leaves the unevaluatedProperties inert",
+    "schemas": [
+      {"allOf": [{"additionalProperties": {"type": "integer"}}], "unevaluatedProperties": false},
+      {"allOf": [{"additionalProperties": {"type": "integer"}}]}
+    ],
+    "tests": [
+      {"data": {"a": 1}, "valid": true},
+      {"data": {"a": "x"}, "valid": false}
+    ],
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "anyOf": [
+        {
+          "type": [
+            "null",
+            "boolean",
+            "number",
+            "string",
+            "array"
+          ]
+        },
+        {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "type": "object"
+        }
+      ]
+    }
+  },
+  {
+    "description": "ir: an allOf branch alternative every object matches closes over the union of its keys",
+    "schema": {"allOf": [{"anyOf": [{"properties": {"a": {}}}, {"properties": {"b": {}}}]}], "unevaluatedProperties": false},
+    "tests": [
+      {"data": {"a": 1}, "valid": true},
+      {"data": {"a": 1, "b": 1}, "valid": true},
+      {"data": {"c": 1}, "valid": false},
+      {"data": 1, "valid": true}
+    ],
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "anyOf": [
+        {"type": ["null", "boolean", "number", "string", "array"]},
+        {"type": "object", "propertyNames": {"enum": ["a", "b"]}}
+      ]
+    }
+  },
+  {
+    "description": "ir: an allOf branch tuple names the indexes its unevaluatedItems sibling must skip",
+    "schemas": [
+      {"allOf": [{"prefixItems": [{"type": "integer"}]}], "unevaluatedItems": false},
+      {"allOf": [{"prefixItems": [{"type": "integer"}]}], "prefixItems": [true], "items": false}
+    ],
+    "tests": [
+      {"data": [], "valid": true},
+      {"data": [1], "valid": true},
+      {"data": ["x"], "valid": false},
+      {"data": [1, 2], "valid": false}
+    ],
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "anyOf": [
+        {
+          "type": [
+            "null",
+            "boolean",
+            "number",
+            "string",
+            "object"
+          ]
+        },
+        {
+          "maxItems": 1,
+          "prefixItems": [
+            {
+              "type": "integer"
+            }
+          ],
+          "type": "array"
+        }
+      ]
+    }
+  },
+  {
+    "description": "ir: the longest branch tuple wins, and nesting recurses",
+    "schema": {"allOf": [{"prefixItems": [{}]}, {"allOf": [{"prefixItems": [{}, {}]}]}], "unevaluatedItems": false},
+    "tests": [
+      {"data": [1, 2], "valid": true},
+      {"data": [1, 2, 3], "valid": false}
+    ],
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "anyOf": [
+        {
+          "type": [
+            "null",
+            "boolean",
+            "number",
+            "string",
+            "object"
+          ]
+        },
+        {
+          "maxItems": 2,
+          "type": "array"
+        }
+      ]
+    }
+  },
+  {
+    "description": "ir: a local tuple shorter than the branch tuple is extended to it",
+    "schema": {"prefixItems": [{"type": "integer"}], "allOf": [{"prefixItems": [{}, {"type": "string"}]}], "unevaluatedItems": false},
+    "tests": [
+      {"data": [1, "x"], "valid": true},
+      {"data": [1, 2], "valid": false},
+      {"data": ["x"], "valid": false},
+      {"data": [1, "x", 3], "valid": false}
+    ],
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "anyOf": [
+        {
+          "type": [
+            "null",
+            "boolean",
+            "number",
+            "string",
+            "object"
+          ]
+        },
+        {
+          "maxItems": 2,
+          "prefixItems": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "type": "array"
+        }
+      ]
+    }
+  },
+  {
+    "description": "ir: a branch schema-form items reaches every index, leaving unevaluatedItems inert",
+    "schemas": [
+      {"allOf": [{"items": {"type": "integer"}}], "unevaluatedItems": false},
+      {"allOf": [{"items": {"type": "integer"}}]}
+    ],
+    "tests": [
+      {"data": [1, 2], "valid": true},
+      {"data": [1, "x"], "valid": false}
+    ],
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "anyOf": [
+        {
+          "type": [
+            "null",
+            "boolean",
+            "number",
+            "string",
+            "object"
+          ]
+        },
+        {
+          "items": {
+            "type": "integer"
+          },
+          "type": "array"
+        }
+      ]
+    }
+  },
+  {
+    "description": "ir: 2019-09 writes the branch tuple as array-form items",
+    "draft": "draft2019-09",
+    "schema": {"allOf": [{"items": [{"type": "integer"}]}], "unevaluatedItems": false},
+    "tests": [
+      {"data": [], "valid": true},
+      {"data": [1], "valid": true},
+      {"data": ["x"], "valid": false},
+      {"data": [1, 2], "valid": false}
+    ],
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2019-09/schema",
+      "anyOf": [
+        {
+          "type": [
+            "null",
+            "boolean",
+            "number",
+            "string",
+            "object"
+          ]
+        },
+        {
+          "items": [
+            {
+              "type": "integer"
+            }
+          ],
+          "maxItems": 1,
+          "type": "array"
+        }
+      ]
+    }
+  },
+  {
+    "description": "ir: 2019-09 a branch additionalItems reaches every index past its tuple",
+    "draft": "draft2019-09",
+    "schemas": [
+      {"allOf": [{"items": [{}], "additionalItems": {"type": "integer"}}], "unevaluatedItems": false},
+      {"allOf": [{"items": [{}], "additionalItems": {"type": "integer"}}]}
+    ],
+    "tests": [
+      {"data": [1, 2], "valid": true},
+      {"data": [1, "x"], "valid": false}
+    ],
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2019-09/schema",
+      "anyOf": [
+        {
+          "type": [
+            "null",
+            "boolean",
+            "number",
+            "string",
+            "object"
+          ]
+        },
+        {
+          "additionalItems": {
+            "type": "integer"
+          },
+          "items": [
+            true
+          ],
+          "type": "array"
+        }
+      ]
+    }
+  },
+  {
+    "description": "raw: a branch contains marks indexes no prefix length writes",
+    "schema": {"allOf": [{"contains": {"const": 2}}], "unevaluatedItems": false},
+    "kind": "raw",
+    "tests": [
+      {"data": [2], "valid": true},
+      {"data": [2, 3], "valid": false}
+    ],
+    "expected": {
+      "allOf": [
+        {
+          "contains": {
+            "const": 2
+          }
+        }
+      ],
+      "unevaluatedItems": false
+    }
+  },
+  {
+    "description": "ir: a local additionalProperties already reaches every key, so the allOf cover is not hoisted",
+    "schemas": [
+      {"allOf": [{"properties": {"a": {}}}], "additionalProperties": {"type": "integer"}, "unevaluatedProperties": false},
+      {"allOf": [{"properties": {"a": {}}}], "additionalProperties": {"type": "integer"}}
+    ],
+    "tests": [
+      {"data": {"a": 1}, "valid": true},
+      {"data": {"a": "x"}, "valid": false},
+      {"data": {"b": 1}, "valid": true}
+    ],
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "anyOf": [
+        {
+          "type": [
+            "null",
+            "boolean",
+            "number",
+            "string",
+            "array"
+          ]
+        },
+        {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "type": "object"
+        }
+      ]
+    }
+  },
+  {
+    "description": "ir: a $ref sibling contributes its own properties to the evaluated set",
+    "schema": {
+      "$defs": {
+        "named": {
+          "properties": {
+            "a": {}
+          }
+        }
+      },
+      "$ref": "#/$defs/named",
+      "unevaluatedProperties": false
+    },
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "anyOf": [
+        {
+          "type": [
+            "null",
+            "boolean",
+            "number",
+            "string",
+            "array"
+          ]
+        },
+        {
+          "propertyNames": {
+            "const": "a"
+          },
+          "type": "object"
+        }
+      ]
+    },
+    "tests": [
+      {
+        "data": {
+          "a": 1
+        },
+        "valid": true
+      },
+      {
+        "data": {
+          "b": 1
+        },
+        "valid": false
+      }
+    ]
+  },
+  {
+    "description": "ir: keys a then evaluates count for unevaluatedProperties only where its if passes",
+    "schema": {"if": {"required": ["a"]}, "then": {"properties": {"a": {}}}, "unevaluatedProperties": false},
+    "tests": [
+      {"data": {"a": 1}, "valid": true},
+      {"data": {"b": 1}, "valid": false},
+      {"data": {"a": 1, "b": 2}, "valid": false},
+      {"data": {}, "valid": true},
+      {"data": 1, "valid": true}
+    ],
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "anyOf": [
+        {"type": ["null", "boolean", "number", "string", "array"]},
+        {"type": "object", "propertyNames": {"const": "a"}}
+      ]
+    }
+  },
+  {
+    "description": "ir: contains marks the elements it matches evaluated",
+    "schema": {"type": "array", "contains": {"const": 2}, "unevaluatedItems": false},
+    "tests": [
+      {"data": [2], "valid": true},
+      {"data": [2, 3], "valid": false}
+    ],
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "contains": {
+        "const": 2
+      },
+      "items": {
+        "const": 2
+      },
+      "type": "array"
+    }
+  },
+  {
+    "description": "ir: before 2020-12 prefixItems is not a keyword, so it leaves every element unevaluated",
+    "draft": "draft2019-09",
+    "schemas": [
+      {"type": "array", "prefixItems": [{"type": "integer"}], "unevaluatedItems": false},
+      {"type": "array", "prefixItems": [{"type": "integer"}], "items": false}
+    ],
+    "tests": [
+      {"data": [], "valid": true},
+      {"data": [1], "valid": false},
+      {"data": [null], "valid": false}
+    ],
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2019-09/schema",
+      "const": []
+    }
+  },
+  {
+    "description": "ir: draft 7 does not know unevaluatedProperties, so it is an ignored annotation",
+    "draft": "draft7",
+    "schemas": [
+      {"type": "object", "properties": {"a": {}}, "unevaluatedProperties": false},
+      {"type": "object", "properties": {"a": {}}}
+    ],
+    "tests": [
+      {"data": {"a": 1}, "valid": true},
+      {"data": {"b": 1}, "valid": true}
+    ],
+    "expected": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object"
+    }
+  },
+  {
+    "description": "ir: not contributes no annotations, so unevaluatedProperties still degrades",
+    "schemas": [
+      {"properties": {"a": {}}, "not": {"required": ["zz"]}, "unevaluatedProperties": false},
+      {"properties": {"a": {}}, "not": {"required": ["zz"]}, "additionalProperties": false}
+    ],
+    "tests": [
+      {"data": {"a": 1}, "valid": true},
+      {"data": {"b": 1}, "valid": false}
+    ],
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "propertyNames": {
+        "const": "a"
+      },
+      "type": "object"
+    }
+  },
+  {
+    "description": "ir: unevaluatedItems:false beside contains admits only what contains matches",
+    "schema": {"type": "array", "contains": {"type": "integer"}, "unevaluatedItems": false},
+    "tests": [
+      {"data": [1], "valid": true},
+      {"data": [1, 2], "valid": true},
+      {"data": [], "valid": false},
+      {"data": ["x"], "valid": false},
+      {"data": [1, "x"], "valid": false},
+      {"data": ["x", 1], "valid": false}
+    ],
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "contains": {
+        "type": "integer"
+      },
+      "items": {
+        "type": "integer"
+      },
+      "type": "array"
+    }
+  },
+  {
+    "description": "ir: unevaluatedItems beside contains admits either",
+    "schema": {"type": "array", "contains": {"type": "integer"}, "unevaluatedItems": {"type": "string"}},
+    "tests": [
+      {"data": [1], "valid": true},
+      {"data": [1, "x"], "valid": true},
+      {"data": ["x", 1], "valid": true},
+      {"data": ["x"], "valid": false},
+      {"data": [], "valid": false},
+      {"data": [1, true], "valid": false}
+    ],
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "contains": {
+        "type": "integer"
+      },
+      "items": {
+        "type": ["integer", "string"]
+      },
+      "type": "array"
+    }
+  },
+  {
+    "description": "ir: contains matching every element leaves unevaluatedItems inert",
+    "schemas": [
+      {"type": "array", "contains": true, "unevaluatedItems": false},
+      {"type": "array", "minItems": 1}
+    ],
+    "tests": [
+      {"data": [1], "valid": true},
+      {"data": ["x", null], "valid": true},
+      {"data": [], "valid": false}
+    ],
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "minItems": 1,
+      "type": "array"
+    }
+  },
+  {
+    "description": "ir: minContains:0 beside unevaluatedItems:false still bounds every element",
+    "schemas": [
+      {"type": "array", "contains": {"type": "integer"}, "minContains": 0, "unevaluatedItems": false},
+      {"type": "array", "items": {"type": "integer"}}
+    ],
+    "tests": [
+      {"data": [], "valid": true},
+      {"data": [1, 2], "valid": true},
+      {"data": ["x"], "valid": false}
+    ],
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "items": {
+        "type": "integer"
+      },
+      "type": "array"
+    }
+  },
+  {
+    "description": "ir: maxContains beside unevaluatedItems:false pins the length",
+    "schema": {"type": "array", "contains": {"type": "integer"}, "maxContains": 1, "unevaluatedItems": false},
+    "tests": [
+      {"data": [1], "valid": true},
+      {"data": [], "valid": false},
+      {"data": [1, 2], "valid": false},
+      {"data": ["x"], "valid": false}
+    ],
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "contains": {
+        "type": "integer"
+      },
+      "items": {
+        "type": "integer"
+      },
+      "maxContains": 1,
+      "type": "array"
+    }
+  },
+  {
+    "description": "ir: a tuple beside contains and unevaluatedItems:false keeps both",
+    "schema": {
+      "type": "array",
+      "prefixItems": [{"type": "boolean"}],
+      "contains": {"type": "integer"},
+      "unevaluatedItems": false
+    },
+    "tests": [
+      {"data": [true, 1], "valid": true},
+      {"data": [true, 1, 2], "valid": true},
+      {"data": [true], "valid": false},
+      {"data": [1], "valid": false},
+      {"data": [true, "x"], "valid": false}
+    ],
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "contains": {
+        "type": "integer"
+      },
+      "items": {
+        "type": "integer"
+      },
+      "prefixItems": [
+        {
+          "type": "boolean"
+        }
+      ],
+      "type": "array"
+    }
+  },
+  {
+    "description": "ir: 2019-09 writes the contains tail additionalItems",
+    "draft": "draft2019-09",
+    "schema": {"type": "array", "contains": {"type": "integer"}, "unevaluatedItems": false},
+    "tests": [
+      {"data": [1], "valid": true},
+      {"data": [], "valid": false},
+      {"data": ["x"], "valid": false}
+    ],
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2019-09/schema",
+      "contains": {
+        "type": "integer"
+      },
+      "items": {
+        "type": "integer"
+      },
+      "type": "array"
+    }
+  },
+  {
+    "description": "ir: a conditional inside an allOf branch evaluating no index leaves unevaluatedItems closing the array",
+    "schema": {
+      "allOf": [
+        {
+          "if": {
+            "type": "array"
+          },
+          "then": true
+        }
+      ],
+      "unevaluatedItems": false
+    },
+    "draft": "draft2020-12",
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "anyOf": [
+        {
+          "type": [
+            "null",
+            "boolean",
+            "number",
+            "string",
+            "object"
+          ]
+        },
+        {
+          "const": []
+        }
+      ]
+    },
+    "tests": [
+      {"data": [], "valid": true},
+      {"data": [1], "valid": false},
+      {"data": 1, "valid": true},
+      {"data": {}, "valid": true}
+    ]
+  },
+  {
+    "description": "ir: a boolean allOf branch evaluates nothing, so unevaluatedProperties sees only the local keys",
+    "schema": {
+      "allOf": [
+        true
+      ],
+      "properties": {
+        "a": {}
+      },
+      "unevaluatedProperties": false
+    },
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "anyOf": [
+        {
+          "type": [
+            "null",
+            "boolean",
+            "number",
+            "string",
+            "array"
+          ]
+        },
+        {
+          "propertyNames": {
+            "const": "a"
+          },
+          "type": "object"
+        }
+      ]
+    },
+    "tests": [
+      {
+        "data": {
+          "a": 1
+        },
+        "valid": true
+      },
+      {
+        "data": {
+          "b": 1
+        },
+        "valid": false
+      },
+      {
+        "data": {},
+        "valid": true
+      },
+      {
+        "data": 5,
+        "valid": true
+      }
+    ]
+  },
+  {
+    "description": "ir: a boolean allOf branch evaluates no index, so unevaluatedItems closes the array",
+    "schema": {
+      "allOf": [
+        true
+      ],
+      "unevaluatedItems": false
+    },
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "anyOf": [
+        {
+          "type": [
+            "null",
+            "boolean",
+            "number",
+            "string",
+            "object"
+          ]
+        },
+        {
+          "const": []
+        }
+      ]
+    },
+    "tests": [
+      {
+        "data": [],
+        "valid": true
+      },
+      {
+        "data": [
+          1
+        ],
+        "valid": false
+      },
+      {
+        "data": 5,
+        "valid": true
+      }
+    ]
+  },
+  {
+    "description": "ir: a branch's own unevaluatedItems reaches every index, leaving the outer one inert",
+    "schema": {
+      "allOf": [
+        {
+          "unevaluatedItems": false
+        }
+      ],
+      "unevaluatedItems": {
+        "type": "integer"
+      }
+    },
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "anyOf": [
+        {
+          "type": [
+            "null",
+            "boolean",
+            "number",
+            "string",
+            "object"
+          ]
+        },
+        {
+          "const": []
+        }
+      ]
+    },
+    "tests": [
+      {
+        "data": [],
+        "valid": true
+      },
+      {
+        "data": [
+          1
+        ],
+        "valid": false
+      },
+      {
+        "data": 5,
+        "valid": true
+      }
+    ]
+  },
+  {
+    "description": "ir: a branch tuple pads the local tuple so the twin starts past the evaluated indexes",
+    "schema": {
+      "allOf": [
+        {
+          "prefixItems": [
+            {
+              "type": "integer"
+            }
+          ]
+        }
+      ],
+      "unevaluatedItems": false
+    },
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "anyOf": [
+        {
+          "type": [
+            "null",
+            "boolean",
+            "number",
+            "string",
+            "object"
+          ]
+        },
+        {
+          "maxItems": 1,
+          "prefixItems": [
+            {
+              "type": "integer"
+            }
+          ],
+          "type": "array"
+        }
+      ]
+    },
+    "tests": [
+      {
+        "data": [],
+        "valid": true
+      },
+      {
+        "data": [
+          1
+        ],
+        "valid": true
+      },
+      {
+        "data": [
+          "x"
+        ],
+        "valid": false
+      },
+      {
+        "data": [
+          1,
+          2
+        ],
+        "valid": false
+      }
+    ]
+  },
+  {
+    "description": "ir: alternatives that evaluate nothing leave every key unevaluated",
+    "schema": {"type": "object", "oneOf": [{}], "unevaluatedProperties": false},
+    "tests": [
+      {"data": {}, "valid": true},
+      {"data": {"a": 1}, "valid": false}
+    ],
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "const": {}
+    }
+  },
+  {
+    "description": "ir: alternatives naming the same key agree on what they evaluate",
+    "schema": {
+      "type": "object",
+      "anyOf": [
+        {"properties": {"a": {"type": "integer"}}},
+        {"properties": {"a": {"type": "boolean"}}}
+      ],
+      "unevaluatedProperties": false
+    },
+    "tests": [
+      {"data": {"a": 1}, "valid": true},
+      {"data": {"a": true}, "valid": true},
+      {"data": {}, "valid": true},
+      {"data": {"b": 1}, "valid": false},
+      {"data": {"a": "x"}, "valid": false}
+    ],
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "a": {
+          "type": [
+            "boolean",
+            "integer"
+          ]
+        }
+      },
+      "propertyNames": {
+        "const": "a"
+      },
+      "type": "object"
+    }
+  },
+  {
+    "description": "ir: alternatives naming different keys split by which of them pass",
+    "schema": {
+      "type": "object",
+      "anyOf": [
+        {"properties": {"a": {"type": "integer"}}, "required": ["a"]},
+        {"properties": {"b": {"type": "integer"}}, "required": ["b"]}
+      ],
+      "unevaluatedProperties": false
+    },
+    "tests": [
+      {"data": {"a": 1}, "valid": true},
+      {"data": {"b": 1}, "valid": true},
+      {"data": {"a": 1, "b": 1}, "valid": true},
+      {"data": {"a": 1, "b": "x"}, "valid": false},
+      {"data": {"c": 1}, "valid": false},
+      {"data": {}, "valid": false}
+    ],
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "anyOf": [
+        {"type": "object", "required": ["a"], "properties": {"a": {"type": "integer"}}, "propertyNames": {"const": "a"}},
+        {"type": "object", "required": ["a", "b"], "properties": {"a": {"type": "integer"}, "b": {"type": "integer"}}, "propertyNames": {"enum": ["a", "b"]}},
+        {"type": "object", "required": ["b"], "properties": {"b": {"type": "integer"}}, "propertyNames": {"const": "b"}}
+      ]
+    }
+  },
+  {
+    "description": "ir: alternatives that reach every key leave the unevaluatedProperties inert",
+    "schemas": [
+      {
+        "type": "object",
+        "anyOf": [
+          {"additionalProperties": {"type": "integer"}},
+          {"additionalProperties": {"type": "integer"}}
+        ],
+        "unevaluatedProperties": false
+      },
+      {"type": "object", "additionalProperties": {"type": "integer"}}
+    ],
+    "tests": [
+      {"data": {"a": 1}, "valid": true},
+      {"data": {"a": "x"}, "valid": false},
+      {"data": {}, "valid": true}
+    ],
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": {
+        "type": "integer"
+      },
+      "type": "object"
+    }
+  },
+  {
+    "description": "ir: alternatives that evaluate no index leave every element unevaluated",
+    "schema": {"type": "array", "oneOf": [{}], "unevaluatedItems": false},
+    "tests": [
+      {"data": [], "valid": true},
+      {"data": [1], "valid": false}
+    ],
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "const": []
+    }
+  },
+  {
+    "description": "ir: alternatives with different tuple lengths split by which of them pass",
+    "schema": {
+      "type": "array",
+      "anyOf": [
+        {"prefixItems": [{"type": "integer"}], "minItems": 1},
+        {"prefixItems": [{"type": "integer"}, {"type": "integer"}], "minItems": 2}
+      ],
+      "unevaluatedItems": false
+    },
+    "tests": [
+      {"data": [1], "valid": true},
+      {"data": [1, 2], "valid": true},
+      {"data": [1, "x"], "valid": false},
+      {"data": [1, 2, 3], "valid": false},
+      {"data": [], "valid": false}
+    ],
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "anyOf": [
+        {"type": "array", "prefixItems": [{"type": "integer"}], "minItems": 1, "maxItems": 1},
+        {"type": "array", "prefixItems": [{"type": "integer"}, {"type": "integer"}], "minItems": 2, "maxItems": 2}
+      ]
+    }
+  },
+  {
+    "description": "ir: unevaluatedProperties:true is a no-op even beside an unresolved applicator",
+    "schema": {"type": "object", "if": {}, "unevaluatedProperties": true},
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object"
+    },
+    "tests": [
+      {"data": {}, "valid": true},
+      {"data": {"a": 1}, "valid": true},
+      {"data": "x", "valid": false}
+    ]
+  },
+  {
+    "description": "ir: unevaluatedItems:true is a no-op beside a $ref that never needs resolving",
+    "schema": {
+      "$defs": {"item": {"type": "array", "items": {"type": "integer"}}},
+      "$ref": "#/$defs/item",
+      "unevaluatedItems": true
+    },
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$defs": {
+        "item": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        }
+      },
+      "$ref": "#/$defs/item"
+    },
+    "tests": [
+      {"data": [1, 2], "valid": true},
+      {"data": ["x"], "valid": false},
+      {"data": {}, "valid": false}
+    ]
+  },
+  {
+    "description": "ir: unevaluatedProperties beside allOf[$ref] sums the reference's properties",
+    "schema": {
+      "$defs": {
+        "named": {
+          "properties": {
+            "a": {}
+          }
+        }
+      },
+      "allOf": [
+        {
+          "$ref": "#/$defs/named"
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "anyOf": [
+        {
+          "type": [
+            "null",
+            "boolean",
+            "number",
+            "string",
+            "array"
+          ]
+        },
+        {
+          "propertyNames": {
+            "const": "a"
+          },
+          "type": "object"
+        }
+      ]
+    },
+    "tests": [
+      {
+        "data": {
+          "a": 1
+        },
+        "valid": true
+      },
+      {
+        "data": {
+          "b": 1
+        },
+        "valid": false
+      }
+    ]
+  },
+  {
+    "description": "ir: unevaluatedProperties beside oneOf branches referencing different targets that agree",
+    "schema": {
+      "$defs": {
+        "left": {"properties": {"a": {"type": "string"}}},
+        "right": {"properties": {"a": {"type": "integer"}}}
+      },
+      "oneOf": [{"$ref": "#/$defs/left"}, {"$ref": "#/$defs/right"}],
+      "unevaluatedProperties": false
+    },
+    "expected": {
+      "$defs": {
+        "left": {
+          "anyOf": [
+            {
+              "type": [
+                "null",
+                "boolean",
+                "number",
+                "string",
+                "array"
+              ]
+            },
+            {
+              "properties": {
+                "a": {
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            }
+          ]
+        },
+        "right": {
+          "anyOf": [
+            {
+              "type": [
+                "null",
+                "boolean",
+                "number",
+                "string",
+                "array"
+              ]
+            },
+            {
+              "properties": {
+                "a": {
+                  "type": "integer"
+                }
+              },
+              "type": "object"
+            }
+          ]
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "anyOf": [
+        {
+          "allOf": [
+            {
+              "type": [
+                "null",
+                "boolean",
+                "number",
+                "string",
+                "array"
+              ]
+            },
+            {
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/left"
+                },
+                {
+                  "$ref": "#/$defs/right"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "allOf": [
+            {
+              "propertyNames": {
+                "const": "a"
+              },
+              "type": "object"
+            },
+            {
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/left"
+                },
+                {
+                  "$ref": "#/$defs/right"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "tests": [
+      {"data": {"a": "x"}, "valid": true},
+      {"data": {"a": 1}, "valid": true},
+      {"data": {"b": 1}, "valid": false}
+    ]
+  },
+  {
+    "description": "ir: unevaluatedProperties beside oneOf branches referencing the identical target is not a false cycle",
+    "schema": {
+      "$defs": {
+        "named": {
+          "properties": {
+            "a": {}
+          }
+        }
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/named",
+          "required": [
+            "a"
+          ]
+        },
+        {
+          "$ref": "#/$defs/named",
+          "not": {
+            "required": [
+              "a"
+            ]
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "anyOf": [
+        {
+          "type": [
+            "null",
+            "boolean",
+            "number",
+            "string",
+            "array"
+          ]
+        },
+        {
+          "propertyNames": {
+            "const": "a"
+          },
+          "type": "object"
+        }
+      ]
+    },
+    "tests": [
+      {
+        "data": {
+          "a": 1
+        },
+        "valid": true
+      },
+      {
+        "data": {},
+        "valid": true
+      },
+      {
+        "data": {
+          "b": 1
+        },
+        "valid": false
+      }
+    ]
+  },
+  {
+    "description": "raw: a $ref cycle reachable through allOf beside unevaluatedProperties leaves the evaluated set undecidable",
+    "schema": {
+      "$defs": {"loop": {"allOf": [{"$ref": "#/$defs/loop"}]}},
+      "$ref": "#/$defs/loop",
+      "unevaluatedProperties": false
+    },
+    "kind": "raw",
+    "expected": {
+      "$defs": {
+        "loop": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/loop"
+            }
+          ]
+        }
+      },
+      "$ref": "#/$defs/loop",
+      "unevaluatedProperties": false
+    }
+  },
+  {
+    "description": "ir: an allOf branch's own $id shifts the base for the $ref inside it",
+    "schema": {
+      "$id": "https://example.com/root.json",
+      "$defs": {
+        "right": {
+          "$id": "https://example.com/nested/target.json",
+          "type": "object",
+          "properties": {
+            "a": {
+              "type": "string"
+            }
+          }
+        },
+        "wrong": {
+          "$id": "https://example.com/target.json",
+          "type": "object",
+          "properties": {
+            "b": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "allOf": [
+        {
+          "$id": "https://example.com/nested/branch.json",
+          "$ref": "target.json"
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "a": {
+          "type": "string"
+        }
+      },
+      "propertyNames": {
+        "const": "a"
+      },
+      "type": "object"
+    }
+  },
+  {
+    "description": "ir: a $ref target's own relative $id is not shifted twice",
+    "schema": {
+      "$id": "https://example.com/root.json",
+      "$defs": {
+        "outer": {
+          "$id": "nested/outer.json",
+          "allOf": [
+            {
+              "$ref": "leaf.json"
+            }
+          ]
+        },
+        "leaf": {
+          "$id": "https://example.com/nested/leaf.json",
+          "properties": {
+            "a": {}
+          }
+        }
+      },
+      "$ref": "#/$defs/outer",
+      "unevaluatedProperties": false
+    },
+    "tests": [
+      {
+        "data": {
+          "a": 1
+        },
+        "valid": true
+      },
+      {
+        "data": {
+          "b": 1
+        },
+        "valid": false
+      }
+    ],
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "anyOf": [
+        {
+          "type": [
+            "null",
+            "boolean",
+            "number",
+            "string",
+            "array"
+          ]
+        },
+        {
+          "propertyNames": {
+            "const": "a"
+          },
+          "type": "object"
+        }
+      ]
+    }
+  },
+  {
+    "description": "raw: a $ref looping back to the node whose own unevaluatedProperties triggered the computation must not credit itself",
+    "schema": {
+      "$defs": {"x": {"$ref": "#/$defs/x", "unevaluatedProperties": false}},
+      "$ref": "#/$defs/x"
+    },
+    "kind": "raw",
+    "expected": {
+      "$defs": {"x": {"$ref": "#/$defs/x", "unevaluatedProperties": false}},
+      "$ref": "#/$defs/x"
+    }
+  },
+  {
+    "description": "ir: a $ref target's own unevaluatedProperties resolves before being credited",
+    "schema": {
+      "$defs": {"y": {"properties": {"a": {}}, "unevaluatedProperties": false}},
+      "$ref": "#/$defs/y",
+      "unevaluatedProperties": false
+    },
+    "tests": [
+      {"data": {"a": 1}, "valid": true},
+      {"data": {"b": 1}, "valid": false}
+    ],
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$defs": {
+        "y": {
+          "anyOf": [
+            {"type": ["null", "boolean", "number", "string", "array"]},
+            {"propertyNames": {"const": "a"}, "type": "object"}
+          ]
+        }
+      },
+      "$ref": "#/$defs/y"
+    }
+  },
+  {
+    "description": "ir: a $ref target's own unevaluatedItems resolves before being credited",
+    "schema": {
+      "$defs": {"y": {"prefixItems": [{}], "unevaluatedItems": false}},
+      "$ref": "#/$defs/y",
+      "unevaluatedItems": false
+    },
+    "tests": [
+      {"data": [1], "valid": true},
+      {"data": [1, 2], "valid": false}
+    ],
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$defs": {
+        "y": {
+          "anyOf": [
+            {"type": ["null", "boolean", "number", "string", "object"]},
+            {"maxItems": 1, "type": "array"}
+          ]
+        }
+      },
+      "$ref": "#/$defs/y"
+    }
+  },
+  {
+    "description": "raw: a $ref looping back to the node whose own unevaluatedItems triggered the computation must not credit itself",
+    "schema": {
+      "$defs": {"y": {"$ref": "#/$defs/y", "unevaluatedItems": false}},
+      "$ref": "#/$defs/y"
+    },
+    "kind": "raw",
+    "expected": {
+      "$defs": {"y": {"$ref": "#/$defs/y", "unevaluatedItems": false}},
+      "$ref": "#/$defs/y"
+    }
+  },
+  {
+    "description": "raw: a $ref cycle reached through allOf beside unevaluatedItems leaves the evaluated set undecidable",
+    "schema": {
+      "$defs": {"loop": {"allOf": [{"$ref": "#/$defs/loop"}]}},
+      "$ref": "#/$defs/loop",
+      "unevaluatedItems": false
+    },
+    "kind": "raw",
+    "expected": {
+      "$defs": {"loop": {"allOf": [{"$ref": "#/$defs/loop"}]}},
+      "$ref": "#/$defs/loop",
+      "unevaluatedItems": false
+    }
+  },
+  {
+    "description": "ir: a conditional inside a oneOf branch is read past once the branch ran as a case, beside unevaluatedProperties",
+    "schema": {"oneOf": [{"if": {}}], "unevaluatedProperties": false},
+    "tests": [
+      {"data": {}, "valid": true},
+      {"data": {"a": 1}, "valid": false},
+      {"data": 1, "valid": true}
+    ],
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "anyOf": [
+        {"type": ["null", "boolean", "number", "string", "array"]},
+        {"const": {}}
+      ]
+    }
+  },
+  {
+    "description": "ir: a conditional inside a oneOf branch is read past once the branch ran as a case, beside unevaluatedItems",
+    "schema": {"oneOf": [{"if": {}}], "unevaluatedItems": false},
+    "tests": [
+      {"data": [], "valid": true},
+      {"data": [1], "valid": false},
+      {"data": 1, "valid": true}
+    ],
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "anyOf": [
+        {"type": ["null", "boolean", "number", "string", "object"]},
+        {"const": []}
+      ]
+    }
+  },
+  {
+    "description": "ir: a $ref target resolving to true contributes nothing to the properties cover",
+    "schema": {
+      "$defs": {
+        "t": true
+      },
+      "$ref": "#/$defs/t",
+      "unevaluatedProperties": false
+    },
+    "tests": [
+      {
+        "data": {},
+        "valid": true
+      },
+      {
+        "data": {
+          "a": 1
+        },
+        "valid": false
+      }
+    ],
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "anyOf": [
+        {
+          "type": [
+            "null",
+            "boolean",
+            "number",
+            "string",
+            "array"
+          ]
+        },
+        {
+          "const": {}
+        }
+      ]
+    }
+  },
+  {
+    "description": "ir: a $ref target resolving to true contributes nothing to the items cover",
+    "schema": {
+      "$defs": {
+        "t": true
+      },
+      "$ref": "#/$defs/t",
+      "unevaluatedItems": false
+    },
+    "tests": [
+      {
+        "data": [],
+        "valid": true
+      },
+      {
+        "data": [
+          1
+        ],
+        "valid": false
+      }
+    ],
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "anyOf": [
+        {
+          "type": [
+            "null",
+            "boolean",
+            "number",
+            "string",
+            "object"
+          ]
+        },
+        {
+          "const": []
+        }
+      ]
+    }
+  },
+  {
+    "description": "ir: unevaluatedProperties beside a dependentSchemas entry evaluating nothing degrades like additionalProperties",
+    "schemas": [
+      {"type": "object", "properties": {"id": {"type": "string"}, "url": {"type": "string"}}, "dependentSchemas": {"id": {"not": {"required": ["url"]}}}, "unevaluatedProperties": false},
+      {"type": "object", "properties": {"id": {"type": "string"}, "url": {"type": "string"}}, "dependentSchemas": {"id": {"not": {"required": ["url"]}}}, "additionalProperties": false}
+    ],
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "anyOf": [
+        {"type": "object", "properties": {"id": {"type": "string"}, "url": false}, "propertyNames": {"enum": ["id", "url"]}},
+        {"type": "object", "properties": {"id": false, "url": {"type": "string"}}, "propertyNames": {"enum": ["id", "url"]}}
+      ]
+    },
+    "tests": [
+      {"data": {"id": "x"}, "valid": true},
+      {"data": {"url": "u"}, "valid": true},
+      {"data": {"id": "x", "url": "u"}, "valid": false},
+      {"data": {"id": "x", "extra": 1}, "valid": false},
+      {"data": {}, "valid": true},
+      {"data": 1, "valid": false}
+    ]
+  },
+  {
+    "description": "ir: unevaluatedProperties beside a dependentSchemas entry evaluating keys splits on the trigger key",
+    "schemas": [
+      {"type": "object", "properties": {"schema": {"type": "object"}, "content": {"type": "object"}}, "dependentSchemas": {"schema": {"properties": {"style": {"type": "string"}, "explode": {"type": "boolean"}}}}, "unevaluatedProperties": false},
+      {"anyOf": [
+        {"type": "object", "properties": {"schema": {"type": "object"}, "content": {"type": "object"}}, "not": {"required": ["schema"]}, "additionalProperties": false},
+        {"type": "object", "required": ["schema"], "properties": {"schema": {"type": "object"}, "content": {"type": "object"}, "style": {"type": "string"}, "explode": {"type": "boolean"}}, "additionalProperties": false}
+      ]}
+    ],
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "anyOf": [
+        {"type": "object", "properties": {"content": {"type": "object"}, "schema": {"type": "object"}}, "propertyNames": {"enum": ["content", "schema"]}},
+        {"type": "object", "required": ["schema"], "properties": {"content": {"type": "object"}, "explode": {"type": "boolean"}, "schema": {"type": "object"}, "style": {"type": "string"}}, "propertyNames": {"enum": ["content", "explode", "schema", "style"]}}
+      ]
+    },
+    "tests": [
+      {"data": {"schema": {}, "style": "x"}, "valid": true},
+      {"data": {"style": "x"}, "valid": false},
+      {"data": {"schema": {}, "explode": 1}, "valid": false},
+      {"data": {"content": {}, "style": "x"}, "valid": false},
+      {"data": {"content": {}}, "valid": true},
+      {"data": {}, "valid": true}
+    ]
+  },
+  {
+    "description": "ir: unevaluatedProperties beside if and then splits on the condition, crediting what a passing if evaluates",
+    "schemas": [
+      {"type": "object", "properties": {"in": {"enum": ["query", "path"]}, "name": {"type": "string"}}, "if": {"properties": {"in": {"const": "query"}}, "required": ["in"]}, "then": {"properties": {"allowEmptyValue": {"type": "boolean"}}}, "unevaluatedProperties": false},
+      {"anyOf": [
+        {"type": "object", "required": ["in"], "properties": {"in": {"const": "query"}, "name": {"type": "string"}, "allowEmptyValue": {"type": "boolean"}}, "additionalProperties": false},
+        {"type": "object", "properties": {"in": {"enum": ["query", "path"]}, "name": {"type": "string"}}, "not": {"properties": {"in": {"const": "query"}}, "required": ["in"]}, "additionalProperties": false}
+      ]}
+    ],
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "anyOf": [
+        {"type": "object", "properties": {"in": {"enum": ["path", "query"]}, "name": {"type": "string"}}, "propertyNames": {"enum": ["in", "name"]}},
+        {"type": "object", "required": ["in"], "properties": {"allowEmptyValue": {"type": "boolean"}, "in": {"const": "query"}, "name": {"type": "string"}}, "propertyNames": {"enum": ["allowEmptyValue", "in", "name"]}}
+      ]
+    },
+    "tests": [
+      {"data": {"in": "query", "allowEmptyValue": true}, "valid": true},
+      {"data": {"in": "path", "allowEmptyValue": true}, "valid": false},
+      {"data": {"in": "path"}, "valid": true},
+      {"data": {"name": "n"}, "valid": true},
+      {"data": {"in": "query", "allowEmptyValue": "x"}, "valid": false},
+      {"data": {"in": "query", "zzz": 1}, "valid": false}
+    ]
+  },
+  {
+    "description": "ir: a passing if alone evaluates its keys for unevaluatedProperties",
+    "schema": {"type": "object", "if": {"properties": {"flag": {"const": true}}, "required": ["flag"]}, "unevaluatedProperties": false},
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {"flag": {"const": true}},
+      "propertyNames": {"const": "flag"}
+    },
+    "tests": [
+      {"data": {"flag": true}, "valid": true},
+      {"data": {}, "valid": true},
+      {"data": {"flag": false}, "valid": false},
+      {"data": {"x": 1}, "valid": false}
+    ]
+  },
+  {
+    "description": "ir: unevaluatedItems beside if and then splits on the condition",
+    "schemas": [
+      {"type": "array", "if": {"minItems": 1}, "then": {"prefixItems": [{"type": "string"}]}, "unevaluatedItems": false},
+      {"anyOf": [
+        {"type": "array", "minItems": 1, "prefixItems": [{"type": "string"}], "items": false},
+        {"type": "array", "maxItems": 0}
+      ]}
+    ],
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "array",
+      "maxItems": 1,
+      "prefixItems": [{"type": "string"}]
+    },
+    "tests": [
+      {"data": [], "valid": true},
+      {"data": ["a"], "valid": true},
+      {"data": ["a", "b"], "valid": false},
+      {"data": [1], "valid": false}
+    ]
+  },
+  {
+    "description": "a conditional reaching no key of its own inside a branch still leaves the covers readable",
+    "schema": {
+      "type": "object",
+      "properties": {"a": {}, "b": {}},
+      "allOf": [{"dependentSchemas": {"a": {"maxProperties": 2}}}],
+      "unevaluatedProperties": false
+    },
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "propertyNames": {"enum": ["a", "b"]}
+    },
+    "tests": [
+      {"data": {}, "valid": true},
+      {"data": {"a": 1}, "valid": true},
+      {"data": {"a": 1, "b": 2}, "valid": true},
+      {"data": {"z": 1}, "valid": false},
+      {"data": 1, "valid": false}
+    ]
+  },
+  {
+    "description": "conditionals reaching no key of their own do not fork the cases",
+    "schema": {
+      "type": "object",
+      "properties": {"a": {}, "b": {}, "c": {}, "d": {}, "e": {}, "f": {}},
+      "allOf": [
+        {"if": {"required": ["a"]}, "then": {"maxProperties": 9}},
+        {"if": {"required": ["b"]}, "then": {"maxProperties": 8}},
+        {"if": {"required": ["c"]}, "then": {"maxProperties": 7}},
+        {"if": {"required": ["d"]}, "then": {"maxProperties": 6}},
+        {"if": {"required": ["e"]}, "then": {"maxProperties": 5}},
+        {"if": {"required": ["f"]}, "then": {"maxProperties": 4}}
+      ],
+      "unevaluatedProperties": false
+    },
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "anyOf": [
+        {
+          "properties": {
+            "f": false
+          },
+          "propertyNames": {
+            "enum": [
+              "a",
+              "b",
+              "c",
+              "d",
+              "e",
+              "f"
+            ]
+          },
+          "type": "object"
+        },
+        {
+          "maxProperties": 4,
+          "propertyNames": {
+            "enum": [
+              "a",
+              "b",
+              "c",
+              "d",
+              "e",
+              "f"
+            ]
+          },
+          "type": "object"
+        }
+      ]
+    },
+    "tests": [
+      {"data": {}, "valid": true},
+      {"data": {"a": 1}, "valid": true},
+      {"data": {"a": 1, "b": 2, "c": 3, "d": 4, "e": 5, "f": 6}, "valid": false},
+      {"data": {"z": 1}, "valid": false},
+      {"data": "s", "valid": false}
+    ]
+  },
+  {
+    "description": "raw: a conditional split outgrowing its case budget keeps the document raw",
+    "schema": {
+      "type": "object",
+      "dependentSchemas": {"a": {"properties": {"a1": {}}}, "b": {"properties": {"b1": {}}}, "c": {"properties": {"c1": {}}}, "d": {"properties": {"d1": {}}}, "e": {"properties": {"e1": {}}}, "f": {"properties": {"f1": {}}}, "g": {"properties": {"g1": {}}}, "h": {"properties": {"h1": {}}}},
+      "unevaluatedProperties": false
+    },
+    "kind": "raw",
+    "expected": {
+      "type": "object",
+      "dependentSchemas": {"a": {"properties": {"a1": {}}}, "b": {"properties": {"b1": {}}}, "c": {"properties": {"c1": {}}}, "d": {"properties": {"d1": {}}}, "e": {"properties": {"e1": {}}}, "f": {"properties": {"f1": {}}}, "g": {"properties": {"g1": {}}}, "h": {"properties": {"h1": {}}}},
+      "unevaluatedProperties": false
+    },
+    "tests": [
+      {"data": {"a": 1, "a1": 2}},
+      {"data": {"z": 1}}
+    ]
+  },
+  {
+    "description": "ir: dependentSchemas triggers only on objects, so a non-object beside unevaluatedProperties stays admitted",
+    "schema": {"type": "string", "dependentSchemas": {"a": {"type": "object"}}, "unevaluatedProperties": false},
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "string"
+    },
+    "tests": [
+      {"data": "s", "valid": true},
+      {"data": {}, "valid": false}
+    ]
+  },
+  {
+    "description": "ir: a dependentSchemas consequent evaluates nothing on an array beside unevaluatedItems",
+    "schema": {"dependentSchemas": {"a": {"prefixItems": [true]}}, "unevaluatedItems": false},
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "anyOf": [
+        {"type": ["null", "boolean", "number", "string", "object"]},
+        {"const": []}
+      ]
+    },
+    "tests": [
+      {"data": [1], "valid": false},
+      {"data": [], "valid": true},
+      {"data": {"a": 1}, "valid": true},
+      {"data": 1, "valid": true}
+    ]
+  },
+  {
+    "description": "ir: dependentSchemas beside if, then and else split together, carrying a sibling allOf into every case",
+    "schema": {
+      "type": "object",
+      "allOf": [{"properties": {"z": {"type": "integer"}}}],
+      "properties": {"a": {}, "b": {}, "c": {}},
+      "dependentSchemas": {"a": {"properties": {"a1": {}}}, "b": {"properties": {"b1": {}}}, "c": {"properties": {"c1": {}}}},
+      "if": {"required": ["a"]},
+      "then": {"properties": {"t": {}}},
+      "else": {"properties": {"e": {}}},
+      "unevaluatedProperties": false
+    },
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "anyOf": [
+        {"type": "object", "properties": {"a": false, "z": {"type": "integer"}}, "propertyNames": {"enum": ["a", "b", "c", "e", "z"]}},
+        {"type": "object", "required": ["a"], "properties": {"z": {"type": "integer"}}, "propertyNames": {"enum": ["a", "a1", "b", "c", "t", "z"]}},
+        {"type": "object", "required": ["a", "b"], "properties": {"z": {"type": "integer"}}, "propertyNames": {"enum": ["a", "a1", "b", "b1", "c", "t", "z"]}},
+        {"type": "object", "required": ["a", "b", "c"], "properties": {"z": {"type": "integer"}}, "propertyNames": {"enum": ["a", "a1", "b", "b1", "c", "c1", "t", "z"]}},
+        {"type": "object", "required": ["a", "c"], "properties": {"z": {"type": "integer"}}, "propertyNames": {"enum": ["a", "a1", "b", "c", "c1", "t", "z"]}},
+        {"type": "object", "required": ["b"], "properties": {"a": false, "z": {"type": "integer"}}, "propertyNames": {"enum": ["a", "b", "b1", "c", "e", "z"]}},
+        {"type": "object", "required": ["b", "c"], "properties": {"a": false, "z": {"type": "integer"}}, "propertyNames": {"enum": ["a", "b", "b1", "c", "c1", "e", "z"]}},
+        {"type": "object", "required": ["c"], "properties": {"a": false, "z": {"type": "integer"}}, "propertyNames": {"enum": ["a", "b", "c", "c1", "e", "z"]}}
+      ]
+    },
+    "tests": [
+      {"data": {"z": 1}, "valid": true},
+      {"data": {"z": "x"}, "valid": false},
+      {"data": {"e": 1}, "valid": true},
+      {"data": {"a": 1, "e": 1}, "valid": false},
+      {"data": {"a": 1, "t": 1}, "valid": true},
+      {"data": {"t": 1}, "valid": false},
+      {"data": {"a": 1, "b": 1, "a1": 1, "b1": 1, "t": 1}, "valid": true},
+      {"data": {"a": 1, "c1": 1}, "valid": false},
+      {"data": {"c": 1, "c1": 1, "e": 1, "z": 2}, "valid": true},
+      {"data": {"b": 1, "e": 1}, "valid": true},
+      {"data": {"b": 1, "b1": 1, "e": 1}, "valid": true},
+      {"data": {"b1": 1}, "valid": false},
+      {"data": {"q": 1}, "valid": false},
+      {"data": "s", "valid": false}
+    ]
+  },
+  {
+    "description": "raw: a condition doubling the dependent cases past the budget keeps the document raw",
+    "schema": {
+      "type": "object",
+      "dependentSchemas": {"a": {"properties": {"a1": {}}}, "b": {"properties": {"b1": {}}}, "c": {"properties": {"c1": {}}}, "d": {"properties": {"d1": {}}}, "e": {"properties": {"e1": {}}}, "f": {"properties": {"f1": {}}}, "g": {"properties": {"g1": {}}}, "h": {"properties": {"h1": {}}}},
+      "if": {"required": ["a"]},
+      "then": {"properties": {"t": {}}},
+      "unevaluatedProperties": false
+    },
+    "kind": "raw",
+    "expected": {
+      "type": "object",
+      "dependentSchemas": {"a": {"properties": {"a1": {}}}, "b": {"properties": {"b1": {}}}, "c": {"properties": {"c1": {}}}, "d": {"properties": {"d1": {}}}, "e": {"properties": {"e1": {}}}, "f": {"properties": {"f1": {}}}, "g": {"properties": {"g1": {}}}, "h": {"properties": {"h1": {}}}},
+      "if": {"required": ["a"]},
+      "then": {"properties": {"t": {}}},
+      "unevaluatedProperties": false
+    },
+    "tests": [
+      {"data": {"a": 1, "a1": 2, "t": 3}},
+      {"data": {"z": 1}}
+    ]
+  },
+  {
+    "description": "ir: a conditional inside an allOf branch splits like a sibling one",
+    "schemas": [
+      {"type": "object", "properties": {"a": {}}, "allOf": [{"if": {"required": ["a"]}, "then": {"properties": {"t": {}}}}], "unevaluatedProperties": false},
+      {"type": "object", "properties": {"a": {}}, "if": {"required": ["a"]}, "then": {"properties": {"t": {}}}, "unevaluatedProperties": false}
+    ],
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "anyOf": [
+        {"type": "object", "required": ["a"], "propertyNames": {"enum": ["a", "t"]}},
+        {"const": {}}
+      ]
+    },
+    "tests": [
+      {"data": {"a": 1, "t": 1}, "valid": true},
+      {"data": {"t": 1}, "valid": false},
+      {"data": {}, "valid": true},
+      {"data": {"a": 1}, "valid": true}
+    ]
+  },
+  {
+    "description": "ir: a conditional behind a $ref splits like a sibling one",
+    "schemas": [
+      {"$defs": {"cond": {"if": {"required": ["a"]}, "then": {"properties": {"t": {}}}}}, "type": "object", "properties": {"a": {}}, "$ref": "#/$defs/cond", "unevaluatedProperties": false},
+      {"$defs": {"cond": {"if": {"required": ["a"]}, "then": {"properties": {"t": {}}}}}, "type": "object", "properties": {"a": {}}, "if": {"required": ["a"]}, "then": {"properties": {"t": {}}}, "unevaluatedProperties": false}
+    ],
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "anyOf": [
+        {"type": "object", "required": ["a"], "propertyNames": {"enum": ["a", "t"]}},
+        {"const": {}}
+      ]
+    },
+    "tests": [
+      {"data": {"a": 1, "t": 1}, "valid": true},
+      {"data": {"t": 1}, "valid": false},
+      {"data": {}, "valid": true}
+    ]
+  },
+  {
+    "description": "ir: a conditional inside a dependent consequent splits under the held case only",
+    "schema": {
+      "$defs": {"style": {"if": {"properties": {"in": {"const": "path"}}, "required": ["in"]}, "then": {"properties": {"s": {}}}}},
+      "type": "object",
+      "properties": {"in": {}, "schema": {}},
+      "dependentSchemas": {"schema": {"allOf": [{"$ref": "#/$defs/style"}]}},
+      "unevaluatedProperties": false
+    },
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "anyOf": [
+        {"type": "object", "properties": {"in": {"anyOf": [{"type": ["null", "boolean", "number", "array", "object"]}, {"type": "string", "not": {"enum": ["path"]}}]}}, "propertyNames": {"enum": ["in", "schema"]}},
+        {"type": "object", "properties": {"schema": false}, "propertyNames": {"enum": ["in", "schema"]}},
+        {"type": "object", "required": ["in", "schema"], "properties": {"in": {"const": "path"}}, "propertyNames": {"enum": ["in", "s", "schema"]}}
+      ]
+    },
+    "tests": [
+      {"data": {"schema": 1, "in": "path", "s": 1}, "valid": true},
+      {"data": {"in": "path", "s": 1}, "valid": false},
+      {"data": {"schema": 1, "in": "query", "s": 1}, "valid": false},
+      {"data": {"schema": 1}, "valid": true},
+      {"data": {"schema": 1, "in": "path"}, "valid": true},
+      {"data": {"s": 1}, "valid": false}
+    ]
+  },
+  {
+    "description": "ir: conditions excluding each other on one key take one case each",
+    "schema": {
+      "type": "object",
+      "properties": {"k": {}},
+      "allOf": [
+        {"if": {"properties": {"k": {"const": "a"}}, "required": ["k"]}, "then": {"properties": {"pa": {}}}},
+        {"if": {"properties": {"k": {"const": "b"}}, "required": ["k"]}, "then": {"properties": {"pb": {}}}},
+        {"if": {"properties": {"k": {"const": "c"}}, "required": ["k"]}, "then": {"properties": {"pc": {}}}},
+        {"if": {"properties": {"k": {"const": "d"}}, "required": ["k"]}, "then": {"properties": {"pd": {}}}},
+        {"if": {"properties": {"k": {"const": "e"}}, "required": ["k"]}, "then": {"properties": {"pe": {}}}},
+        {"if": {"properties": {"k": {"const": "f"}}, "required": ["k"]}, "then": {"properties": {"pf": {}}}}
+      ],
+      "unevaluatedProperties": false
+    },
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "anyOf": [
+        {"type": "object", "properties": {"k": {"anyOf": [{"type": ["null", "boolean", "number", "array", "object"]}, {"type": "string", "not": {"enum": ["a", "b", "c", "d", "e", "f"]}}, {"enum": ["a", "b", "c", "d", "e", "f"]}]}}, "propertyNames": {"const": "k"}},
+        {"type": "object", "required": ["k"], "properties": {"k": {"const": "a"}}, "propertyNames": {"enum": ["k", "pa"]}},
+        {"type": "object", "required": ["k"], "properties": {"k": {"const": "b"}}, "propertyNames": {"enum": ["k", "pb"]}},
+        {"type": "object", "required": ["k"], "properties": {"k": {"const": "c"}}, "propertyNames": {"enum": ["k", "pc"]}},
+        {"type": "object", "required": ["k"], "properties": {"k": {"const": "d"}}, "propertyNames": {"enum": ["k", "pd"]}},
+        {"type": "object", "required": ["k"], "properties": {"k": {"const": "e"}}, "propertyNames": {"enum": ["k", "pe"]}},
+        {"type": "object", "required": ["k"], "properties": {"k": {"const": "f"}}, "propertyNames": {"enum": ["k", "pf"]}}
+      ]
+    },
+    "tests": [
+      {"data": {"k": "a", "pa": 1}, "valid": true},
+      {"data": {"k": "a", "pb": 1}, "valid": false},
+      {"data": {"pa": 1}, "valid": false},
+      {"data": {}, "valid": true},
+      {"data": {"k": "z"}, "valid": true},
+      {"data": {"k": "f", "pf": 1}, "valid": true}
+    ]
+  },
+  {
+    "description": "ir: a condition naming a second property stays outside the exclusive group",
+    "schema": {
+      "type": "object",
+      "properties": {"type": {}, "scheme": {}},
+      "allOf": [
+        {"if": {"properties": {"type": {"const": "apiKey"}}, "required": ["type"]}, "then": {"properties": {"name": {}}}},
+        {"if": {"properties": {"type": {"const": "http"}}, "required": ["type"]}, "then": {"properties": {"scheme": {}}}},
+        {"if": {"properties": {"type": {"const": "http"}, "scheme": {"const": "bearer"}}, "required": ["type", "scheme"]}, "then": {"properties": {"bearerFormat": {}}}}
+      ],
+      "unevaluatedProperties": false
+    },
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "anyOf": [
+        {
+          "properties": {
+            "scheme": {
+              "anyOf": [
+                {
+                  "type": [
+                    "null",
+                    "boolean",
+                    "number",
+                    "array",
+                    "object"
+                  ]
+                },
+                {
+                  "not": {
+                    "enum": [
+                      "bearer"
+                    ]
+                  },
+                  "type": "string"
+                }
+              ]
+            },
+            "type": {
+              "anyOf": [
+                {
+                  "type": [
+                    "null",
+                    "boolean",
+                    "number",
+                    "array",
+                    "object"
+                  ]
+                },
+                {
+                  "not": {
+                    "enum": [
+                      "apiKey"
+                    ]
+                  },
+                  "type": "string"
+                },
+                {
+                  "const": "apiKey"
+                }
+              ]
+            }
+          },
+          "propertyNames": {
+            "enum": [
+              "scheme",
+              "type"
+            ]
+          },
+          "type": "object"
+        },
+        {
+          "properties": {
+            "type": {
+              "anyOf": [
+                {
+                  "type": [
+                    "null",
+                    "boolean",
+                    "number",
+                    "array",
+                    "object"
+                  ]
+                },
+                {
+                  "not": {
+                    "enum": [
+                      "apiKey",
+                      "http"
+                    ]
+                  },
+                  "type": "string"
+                },
+                {
+                  "const": "apiKey"
+                }
+              ]
+            }
+          },
+          "propertyNames": {
+            "enum": [
+              "scheme",
+              "type"
+            ]
+          },
+          "type": "object"
+        },
+        {
+          "properties": {
+            "scheme": {
+              "const": "bearer"
+            },
+            "type": {
+              "const": "http"
+            }
+          },
+          "propertyNames": {
+            "enum": [
+              "bearerFormat",
+              "scheme",
+              "type"
+            ]
+          },
+          "required": [
+            "scheme",
+            "type"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "apiKey"
+            }
+          },
+          "propertyNames": {
+            "enum": [
+              "name",
+              "scheme",
+              "type"
+            ]
+          },
+          "required": [
+            "type"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "tests": [
+      {"data": {"type": "apiKey", "name": "n"}, "valid": true},
+      {"data": {"type": "http", "scheme": "basic"}, "valid": true},
+      {"data": {"type": "http", "scheme": "bearer", "bearerFormat": "JWT"}, "valid": true},
+      {"data": {"type": "http", "scheme": "basic", "bearerFormat": "x"}, "valid": false},
+      {"data": {"type": "apiKey", "scheme": "x"}, "valid": true},
+      {"data": {"name": "n"}, "valid": false},
+      {"data": {}, "valid": true}
+    ]
+  },
+  {
+    "description": "raw: conditions on distinct keys past the case budget keep the document raw",
+    "schema": {
+      "type": "object",
+      "allOf": [
+        {"if": {"required": ["k1"]}, "then": {"properties": {"p1": {}}}},
+        {"if": {"required": ["k2"]}, "then": {"properties": {"p2": {}}}},
+        {"if": {"required": ["k3"]}, "then": {"properties": {"p3": {}}}},
+        {"if": {"required": ["k4"]}, "then": {"properties": {"p4": {}}}},
+        {"if": {"required": ["k5"]}, "then": {"properties": {"p5": {}}}},
+        {"if": {"required": ["k6"]}, "then": {"properties": {"p6": {}}}},
+        {"if": {"required": ["k7"]}, "then": {"properties": {"p7": {}}}},
+        {"if": {"required": ["k8"]}, "then": {"properties": {"p8": {}}}}
+      ],
+      "unevaluatedProperties": false
+    },
+    "kind": "raw",
+    "expected": {
+      "type": "object",
+      "allOf": [
+        {"if": {"required": ["k1"]}, "then": {"properties": {"p1": {}}}},
+        {"if": {"required": ["k2"]}, "then": {"properties": {"p2": {}}}},
+        {"if": {"required": ["k3"]}, "then": {"properties": {"p3": {}}}},
+        {"if": {"required": ["k4"]}, "then": {"properties": {"p4": {}}}},
+        {"if": {"required": ["k5"]}, "then": {"properties": {"p5": {}}}},
+        {"if": {"required": ["k6"]}, "then": {"properties": {"p6": {}}}},
+        {"if": {"required": ["k7"]}, "then": {"properties": {"p7": {}}}},
+        {"if": {"required": ["k8"]}, "then": {"properties": {"p8": {}}}}
+      ],
+      "unevaluatedProperties": false
+    },
+    "tests": [
+      {"data": {"k1": 1, "p1": 1}},
+      {"data": {"z": 1}}
+    ]
+  },
+  {
+    "description": "ir: conditions excluding each other on one key all hold on a non-object, where properties assert nothing",
+    "schema": {
+      "allOf": [
+        {"if": {"properties": {"k": {"const": "a"}}, "required": ["k"]}, "then": {}, "else": {"maxLength": 1}},
+        {"if": {"properties": {"k": {"const": "b"}}, "required": ["k"]}, "then": {}, "else": {"maxLength": 1}}
+      ],
+      "unevaluatedProperties": false
+    },
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "anyOf": [
+        {"type": ["null", "boolean", "number", "string", "array"]},
+        {"type": "object", "properties": {"k": {"enum": ["a", "b"]}}, "propertyNames": {"const": "k"}}
+      ]
+    },
+    "tests": [
+      {"data": "abc", "valid": true},
+      {"data": [1, 2, 3], "valid": true},
+      {"data": {}, "valid": true},
+      {"data": {"k": "a"}, "valid": true},
+      {"data": {"k": "c"}, "valid": false},
+      {"data": {"k": "a", "x": 1}, "valid": false}
+    ]
+  },
+  {
+    "description": "ir: numeric constants on one key form no exclusive group, since 1 and 1.0 pin the same values",
+    "schema": {
+      "type": "object",
+      "allOf": [
+        {"if": {"properties": {"k": {"const": 1}}, "required": ["k"]}, "then": {"properties": {"p": {}}}},
+        {"if": {"properties": {"k": {"const": 1.0}}, "required": ["k"]}, "then": {"properties": {"q": {}}}}
+      ],
+      "unevaluatedProperties": false
+    },
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "anyOf": [
+        {"type": "object", "properties": {"k": {"const": 1}}, "required": ["k"], "propertyNames": {"enum": ["k", "p", "q"]}},
+        {"const": {}}
+      ]
+    },
+    "tests": [
+      {"data": {"k": 1, "p": 1, "q": 1}, "valid": true},
+      {"data": {"k": 1.0, "p": 1, "q": 1}, "valid": true},
+      {"data": {"k": 2}, "valid": false},
+      {"data": {}, "valid": true}
+    ]
+  },
+  {
+    "description": "raw: a conditional behind a $ref target with its own $id keeps the document raw, since its bodies resolve references against that target",
+    "schema": {
+      "$defs": {
+        "part": {
+          "$id": "https://example.com/part",
+          "$defs": {"inner": {"properties": {"a": {"type": "integer"}}}},
+          "if": {"required": ["a"]},
+          "then": {"$ref": "#/$defs/inner"}
+        }
+      },
+      "allOf": [{"$ref": "#/$defs/part"}],
+      "unevaluatedProperties": false
+    },
+    "kind": "raw",
+    "expected": {
+      "$defs": {
+        "part": {
+          "$id": "https://example.com/part",
+          "$defs": {"inner": {"properties": {"a": {"type": "integer"}}}},
+          "if": {"required": ["a"]},
+          "then": {"$ref": "#/$defs/inner"}
+        }
+      },
+      "allOf": [{"$ref": "#/$defs/part"}],
+      "unevaluatedProperties": false
+    },
+    "tests": [
+      {"data": {"a": 1}, "valid": true},
+      {"data": {"a": "x"}, "valid": false},
+      {"data": {}, "valid": true},
+      {"data": {"b": 1}, "valid": false}
+    ]
+  },
+  {
+    "description": "raw: a conditional whose body carries an anchor keeps the document raw, since a copy would register it twice",
+    "schema": {
+      "type": "object",
+      "if": {"required": ["a"]},
+      "then": {"$anchor": "held", "properties": {"a": {}, "b": {}}},
+      "unevaluatedProperties": false
+    },
+    "kind": "raw",
+    "expected": {
+      "type": "object",
+      "if": {"required": ["a"]},
+      "then": {"$anchor": "held", "properties": {"a": {}, "b": {}}},
+      "unevaluatedProperties": false
+    },
+    "tests": [
+      {"data": {"a": 1, "b": 2}, "valid": true},
+      {"data": {"a": 1, "c": 1}, "valid": false},
+      {"data": {"z": 1}, "valid": false},
+      {"data": {}, "valid": true}
+    ]
+  },
+  {
+    "description": "ir: conditions pinning different keys form separate groups",
+    "schema": {
+      "type": "object",
+      "allOf": [
+        {"if": {"properties": {"k": {"const": "a"}}, "required": ["k"]}, "then": {"properties": {"p": {}}}},
+        {"if": {"properties": {"x": {"const": "b"}}, "required": ["x"]}, "then": {"properties": {"q": {}}}}
+      ],
+      "unevaluatedProperties": false
+    },
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "anyOf": [
+        {"type": "object", "properties": {"k": {"const": "a"}}, "required": ["k"], "propertyNames": {"enum": ["k", "p"]}},
+        {"type": "object", "properties": {"k": {"const": "a"}, "x": {"const": "b"}}, "required": ["k", "x"], "propertyNames": {"enum": ["k", "p", "q", "x"]}},
+        {"type": "object", "properties": {"x": {"const": "b"}}, "required": ["x"], "propertyNames": {"enum": ["q", "x"]}},
+        {"const": {}}
+      ]
+    },
+    "tests": [
+      {"data": {"k": "a", "p": 1}, "valid": true},
+      {"data": {"x": "b", "q": 1}, "valid": true},
+      {"data": {"k": "a", "x": "b", "p": 1, "q": 1}, "valid": true},
+      {"data": {"k": "a", "q": 1}, "valid": false},
+      {"data": {"k": "c"}, "valid": false},
+      {"data": {}, "valid": true}
+    ]
+  },
+  {
+    "description": "ir: a condition whose required names a key other than the one it pins forks in two",
+    "schema": {
+      "type": "object",
+      "allOf": [
+        {"if": {"properties": {"k": {"const": "a"}}, "required": ["x"]}, "then": {"properties": {"p": {}}}}
+      ],
+      "unevaluatedProperties": false
+    },
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "const": {}
+    },
+    "tests": [
+      {"data": {}, "valid": true},
+      {"data": {"x": 1, "k": "a", "p": 1}, "valid": false},
+      {"data": {"k": "a"}, "valid": false},
+      {"data": {"p": 1}, "valid": false}
+    ]
+  },
+  {
+    "description": "raw: a dependency consequent referencing a target of another draft keeps the document raw",
+    "schema": {
+      "type": "object",
+      "$defs": {"old": {"$id": "https://example.com/old", "$schema": "http://json-schema.org/draft-07/schema#", "properties": {"b": {}}}},
+      "dependentSchemas": {"a": {"$ref": "https://example.com/old"}},
+      "unevaluatedProperties": false
+    },
+    "kind": "raw",
+    "expected": {
+      "type": "object",
+      "$defs": {"old": {"$id": "https://example.com/old", "$schema": "http://json-schema.org/draft-07/schema#", "properties": {"b": {}}}},
+      "dependentSchemas": {"a": {"$ref": "https://example.com/old"}},
+      "unevaluatedProperties": false
+    },
+    "tests": [
+      {"data": {}, "valid": true},
+      {"data": {"a": 1}, "valid": false},
+      {"data": {"a": 1, "b": 2}, "valid": false},
+      {"data": {"b": 1}, "valid": false}
+    ]
+  },
+  {
+    "description": "raw: a then referencing a target of another draft keeps the document raw",
+    "schema": {
+      "type": "object",
+      "$defs": {"old": {"$id": "https://example.com/old", "$schema": "http://json-schema.org/draft-07/schema#", "properties": {"b": {}}}},
+      "properties": {"a": {}},
+      "if": {"required": ["a"]},
+      "then": {"$ref": "https://example.com/old"},
+      "unevaluatedProperties": false
+    },
+    "kind": "raw",
+    "expected": {
+      "type": "object",
+      "$defs": {"old": {"$id": "https://example.com/old", "$schema": "http://json-schema.org/draft-07/schema#", "properties": {"b": {}}}},
+      "properties": {"a": {}},
+      "if": {"required": ["a"]},
+      "then": {"$ref": "https://example.com/old"},
+      "unevaluatedProperties": false
+    },
+    "tests": [
+      {"data": {"a": 1, "b": 2}, "valid": true},
+      {"data": {"a": 1, "c": 1}, "valid": false},
+      {"data": {}, "valid": true},
+      {"data": {"b": 1}, "valid": false}
+    ]
+  },
+  {
+    "description": "raw: an else referencing a target of another draft keeps the document raw",
+    "schema": {
+      "type": "object",
+      "$defs": {"old": {"$id": "https://example.com/old", "$schema": "http://json-schema.org/draft-07/schema#", "properties": {"b": {}}}},
+      "properties": {"a": {}},
+      "if": {"required": ["a"]},
+      "then": {},
+      "else": {"$ref": "https://example.com/old"},
+      "unevaluatedProperties": false
+    },
+    "kind": "raw",
+    "expected": {
+      "type": "object",
+      "$defs": {"old": {"$id": "https://example.com/old", "$schema": "http://json-schema.org/draft-07/schema#", "properties": {"b": {}}}},
+      "properties": {"a": {}},
+      "if": {"required": ["a"]},
+      "then": {},
+      "else": {"$ref": "https://example.com/old"},
+      "unevaluatedProperties": false
+    },
+    "tests": [
+      {"data": {"b": 1}, "valid": true},
+      {"data": {"a": 1}, "valid": true},
+      {"data": {"a": 1, "b": 1}, "valid": false},
+      {"data": {}, "valid": true}
+    ]
+  },
+  {
+    "description": "raw: a then in an exclusive group referencing a target of another draft keeps the document raw",
+    "schema": {
+      "type": "object",
+      "$defs": {"old": {"$id": "https://example.com/old", "$schema": "http://json-schema.org/draft-07/schema#", "properties": {"b": {}}}},
+      "allOf": [
+        {"if": {"properties": {"k": {"const": "a"}}, "required": ["k"]}, "then": {"$ref": "https://example.com/old"}},
+        {"if": {"properties": {"k": {"const": "b"}}, "required": ["k"]}, "then": {"properties": {"q": {}}}}
+      ],
+      "unevaluatedProperties": false
+    },
+    "kind": "raw",
+    "expected": {
+      "type": "object",
+      "$defs": {"old": {"$id": "https://example.com/old", "$schema": "http://json-schema.org/draft-07/schema#", "properties": {"b": {}}}},
+      "allOf": [
+        {"if": {"properties": {"k": {"const": "a"}}, "required": ["k"]}, "then": {"$ref": "https://example.com/old"}},
+        {"if": {"properties": {"k": {"const": "b"}}, "required": ["k"]}, "then": {"properties": {"q": {}}}}
+      ],
+      "unevaluatedProperties": false
+    },
+    "tests": [
+      {"data": {"k": "a", "b": 1}, "valid": true},
+      {"data": {"k": "b", "q": 1}, "valid": true},
+      {"data": {"k": "a", "q": 1}, "valid": false},
+      {"data": {}, "valid": true}
+    ]
+  },
+  {
+    "description": "raw: an else in an exclusive group referencing a target of another draft keeps the document raw",
+    "schema": {
+      "type": "object",
+      "$defs": {"old": {"$id": "https://example.com/old", "$schema": "http://json-schema.org/draft-07/schema#", "properties": {"b": {}}}},
+      "allOf": [
+        {"if": {"properties": {"k": {"const": "a"}}, "required": ["k"]}, "then": {"properties": {"p": {}}}, "else": {"$ref": "https://example.com/old"}}
+      ],
+      "unevaluatedProperties": false
+    },
+    "kind": "raw",
+    "expected": {
+      "type": "object",
+      "$defs": {"old": {"$id": "https://example.com/old", "$schema": "http://json-schema.org/draft-07/schema#", "properties": {"b": {}}}},
+      "allOf": [
+        {"if": {"properties": {"k": {"const": "a"}}, "required": ["k"]}, "then": {"properties": {"p": {}}}, "else": {"$ref": "https://example.com/old"}}
+      ],
+      "unevaluatedProperties": false
+    },
+    "tests": [
+      {"data": {"k": "a", "p": 1}, "valid": true},
+      {"data": {"b": 1}, "valid": true},
+      {"data": {"k": "a", "b": 1}, "valid": false},
+      {"data": {}, "valid": true}
+    ]
+  },
+  {
+    "description": "raw: a group case forking past the case budget keeps the document raw",
+    "schema": {
+      "type": "object",
+      "if": {"properties": {"k": {"const": "a"}}, "required": ["k"]},
+      "then": {"properties": {"p": {}}},
+      "allOf": [
+        {"if": {"required": ["k1"]}, "then": {"properties": {"p1": {}}}},
+        {"if": {"required": ["k2"]}, "then": {"properties": {"p2": {}}}},
+        {"if": {"required": ["k3"]}, "then": {"properties": {"p3": {}}}},
+        {"if": {"required": ["k4"]}, "then": {"properties": {"p4": {}}}},
+        {"if": {"required": ["k5"]}, "then": {"properties": {"p5": {}}}},
+        {"if": {"required": ["k6"]}, "then": {"properties": {"p6": {}}}}
+      ],
+      "unevaluatedProperties": false
+    },
+    "kind": "raw",
+    "expected": {
+      "type": "object",
+      "if": {"properties": {"k": {"const": "a"}}, "required": ["k"]},
+      "then": {"properties": {"p": {}}},
+      "allOf": [
+        {"if": {"required": ["k1"]}, "then": {"properties": {"p1": {}}}},
+        {"if": {"required": ["k2"]}, "then": {"properties": {"p2": {}}}},
+        {"if": {"required": ["k3"]}, "then": {"properties": {"p3": {}}}},
+        {"if": {"required": ["k4"]}, "then": {"properties": {"p4": {}}}},
+        {"if": {"required": ["k5"]}, "then": {"properties": {"p5": {}}}},
+        {"if": {"required": ["k6"]}, "then": {"properties": {"p6": {}}}}
+      ],
+      "unevaluatedProperties": false
+    },
+    "tests": [
+      {"data": {"k": "a", "p": 1}, "valid": true},
+      {"data": {"k1": 1, "p1": 1}, "valid": false},
+      {"data": {}, "valid": true}
+    ]
+  },
+  {
+    "description": "raw: the case where no group member is met forking past the case budget keeps the document raw",
+    "schema": {
+      "type": "object",
+      "if": {"properties": {"k": {"const": "a"}}, "required": ["k"]},
+      "then": {"properties": {"p": {}}},
+      "allOf": [
+        {"if": {"required": ["k1"]}, "then": {"properties": {"p1": {}}}},
+        {"if": {"required": ["k2"]}, "then": {"properties": {"p2": {}}}},
+        {"if": {"required": ["k3"]}, "then": {"properties": {"p3": {}}}},
+        {"if": {"required": ["k4"]}, "then": {"properties": {"p4": {}}}},
+        {"if": {"required": ["k5"]}, "then": {"properties": {"p5": {}}}},
+        {"if": {"required": ["k6"]}, "then": {"properties": {"p6": {}}}},
+        {"if": {"required": ["k7"]}, "then": {"properties": {"p7": {}}}},
+        {"if": {"required": ["k8"]}, "then": {"properties": {"p8": {}}}}
+      ],
+      "unevaluatedProperties": false
+    },
+    "kind": "raw",
+    "expected": {
+      "type": "object",
+      "if": {"properties": {"k": {"const": "a"}}, "required": ["k"]},
+      "then": {"properties": {"p": {}}},
+      "allOf": [
+        {"if": {"required": ["k1"]}, "then": {"properties": {"p1": {}}}},
+        {"if": {"required": ["k2"]}, "then": {"properties": {"p2": {}}}},
+        {"if": {"required": ["k3"]}, "then": {"properties": {"p3": {}}}},
+        {"if": {"required": ["k4"]}, "then": {"properties": {"p4": {}}}},
+        {"if": {"required": ["k5"]}, "then": {"properties": {"p5": {}}}},
+        {"if": {"required": ["k6"]}, "then": {"properties": {"p6": {}}}},
+        {"if": {"required": ["k7"]}, "then": {"properties": {"p7": {}}}},
+        {"if": {"required": ["k8"]}, "then": {"properties": {"p8": {}}}}
+      ],
+      "unevaluatedProperties": false
+    },
+    "tests": [
+      {"data": {"k": "a", "p": 1}, "valid": true},
+      {"data": {"k1": 1, "p1": 1}, "valid": false},
+      {"data": {}, "valid": true}
+    ]
+  },
+  {
+    "description": "raw: a body referring back to its own conditional keeps the document raw",
+    "schema": {
+      "type": "object",
+      "$defs": {"loop": {"if": {"required": ["never"]}, "then": {"$ref": "#/$defs/loop"}}},
+      "if": {"required": ["never"]},
+      "then": {"$ref": "#/$defs/loop"},
+      "unevaluatedProperties": false
+    },
+    "kind": "raw",
+    "expected": {
+      "type": "object",
+      "$defs": {"loop": {"if": {"required": ["never"]}, "then": {"$ref": "#/$defs/loop"}}},
+      "if": {"required": ["never"]},
+      "then": {"$ref": "#/$defs/loop"},
+      "unevaluatedProperties": false
+    },
+    "tests": [
+      {"data": {}, "valid": true},
+      {"data": {"a": 1}, "valid": false}
+    ]
+  },
+  {
+    "description": "ir: oneOf branches naming different keys split into one case per branch",
+    "schema": {
+      "oneOf": [
+        {"type": "object", "properties": {"b": {"type": "boolean"}}, "required": ["b"]},
+        {"type": "object", "properties": {"c": {"type": "string"}}, "required": ["c"]}
+      ],
+      "unevaluatedProperties": false
+    },
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "anyOf": [
+        {"type": "object", "required": ["b"], "properties": {"b": {"type": "boolean"}}, "propertyNames": {"const": "b"}},
+        {"type": "object", "required": ["c"], "properties": {"c": {"type": "string"}}, "propertyNames": {"const": "c"}}
+      ]
+    },
+    "tests": [
+      {"data": {"b": true}, "valid": true},
+      {"data": {"c": "x"}, "valid": true},
+      {"data": {"b": true, "c": "x"}, "valid": false},
+      {"data": {"b": true, "c": 1}, "valid": false},
+      {"data": {"b": 1}, "valid": false},
+      {"data": {}, "valid": false},
+      {"data": {"b": true, "d": 1}, "valid": false},
+      {"data": 1, "valid": false},
+      {"data": "x", "valid": false},
+      {"data": null, "valid": false},
+      {"data": [], "valid": false}
+    ]
+  },
+  {
+    "description": "ir: anyOf branches naming different keys split into one case per passing set",
+    "schema": {
+      "anyOf": [
+        {"type": "object", "properties": {"b": {"type": "boolean"}}, "required": ["b"]},
+        {"type": "object", "properties": {"c": {"type": "string"}}, "required": ["c"]}
+      ],
+      "unevaluatedProperties": false
+    },
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "anyOf": [
+        {"type": "object", "required": ["b"], "properties": {"b": {"type": "boolean"}}, "propertyNames": {"const": "b"}},
+        {"type": "object", "required": ["b", "c"], "properties": {"b": {"type": "boolean"}, "c": {"type": "string"}}, "propertyNames": {"enum": ["b", "c"]}},
+        {"type": "object", "required": ["c"], "properties": {"c": {"type": "string"}}, "propertyNames": {"const": "c"}}
+      ]
+    },
+    "tests": [
+      {"data": {"b": true}, "valid": true},
+      {"data": {"c": "x"}, "valid": true},
+      {"data": {"b": true, "c": "x"}, "valid": true},
+      {"data": {"b": true, "c": 1}, "valid": false},
+      {"data": {"b": 1, "c": "x"}, "valid": false},
+      {"data": {}, "valid": false},
+      {"data": {"d": 1}, "valid": false},
+      {"data": {"b": true, "d": 1}, "valid": false},
+      {"data": 1, "valid": false},
+      {"data": "x", "valid": false},
+      {"data": null, "valid": false}
+    ]
+  },
+  {
+    "description": "ir: a oneOf inside an allOf branch splits like a sibling one",
+    "schemas": [
+      {
+        "allOf": [
+          {"type": "object", "properties": {"a": {"type": "integer"}}, "required": ["a"]},
+          {"oneOf": [
+            {"type": "object", "properties": {"b": {"type": "boolean"}}, "required": ["b"]},
+            {"type": "object", "properties": {"c": {"type": "string"}}, "required": ["c"]}
+          ]}
+        ],
+        "unevaluatedProperties": false
+      },
+      {
+        "allOf": [{"type": "object", "properties": {"a": {"type": "integer"}}, "required": ["a"]}],
+        "oneOf": [
+          {"type": "object", "properties": {"b": {"type": "boolean"}}, "required": ["b"]},
+          {"type": "object", "properties": {"c": {"type": "string"}}, "required": ["c"]}
+        ],
+        "unevaluatedProperties": false
+      }
+    ],
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "anyOf": [
+        {"type": "object", "required": ["a", "b"], "properties": {"a": {"type": "integer"}, "b": {"type": "boolean"}}, "propertyNames": {"enum": ["a", "b"]}},
+        {"type": "object", "required": ["a", "c"], "properties": {"a": {"type": "integer"}, "c": {"type": "string"}}, "propertyNames": {"enum": ["a", "c"]}}
+      ]
+    },
+    "tests": [
+      {"data": {"a": 1, "b": true}, "valid": true},
+      {"data": {"a": 1, "c": "x"}, "valid": true},
+      {"data": {"a": 1, "b": true, "c": "x"}, "valid": false},
+      {"data": {"b": true}, "valid": false},
+      {"data": {"a": 1}, "valid": false},
+      {"data": {"a": 1, "b": true, "d": 1}, "valid": false},
+      {"data": {"a": "s", "b": true}, "valid": false},
+      {"data": 1, "valid": false}
+    ]
+  },
+  {
+    "description": "ir: an anyOf inside an allOf branch splits like a sibling one",
+    "schemas": [
+      {
+        "allOf": [
+          {"type": "object", "properties": {"a": {"type": "integer"}}, "required": ["a"]},
+          {"anyOf": [
+            {"type": "object", "properties": {"b": {"type": "boolean"}}, "required": ["b"]},
+            {"type": "object", "properties": {"c": {"type": "string"}}, "required": ["c"]}
+          ]}
+        ],
+        "unevaluatedProperties": false
+      },
+      {
+        "allOf": [{"type": "object", "properties": {"a": {"type": "integer"}}, "required": ["a"]}],
+        "anyOf": [
+          {"type": "object", "properties": {"b": {"type": "boolean"}}, "required": ["b"]},
+          {"type": "object", "properties": {"c": {"type": "string"}}, "required": ["c"]}
+        ],
+        "unevaluatedProperties": false
+      }
+    ],
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "anyOf": [
+        {"type": "object", "required": ["a", "b"], "properties": {"a": {"type": "integer"}, "b": {"type": "boolean"}}, "propertyNames": {"enum": ["a", "b"]}},
+        {"type": "object", "required": ["a", "b", "c"], "properties": {"a": {"type": "integer"}, "b": {"type": "boolean"}, "c": {"type": "string"}}, "propertyNames": {"enum": ["a", "b", "c"]}},
+        {"type": "object", "required": ["a", "c"], "properties": {"a": {"type": "integer"}, "c": {"type": "string"}}, "propertyNames": {"enum": ["a", "c"]}}
+      ]
+    },
+    "tests": [
+      {"data": {"a": 1, "b": true, "c": "x"}, "valid": true},
+      {"data": {"a": 1, "b": true}, "valid": true},
+      {"data": {"a": 1, "c": "x"}, "valid": true},
+      {"data": {"a": 1, "b": true, "c": 1}, "valid": false},
+      {"data": {"a": 1}, "valid": false},
+      {"data": {"b": true, "c": "x"}, "valid": false},
+      {"data": 1, "valid": false}
+    ]
+  },
+  {
+    "description": "ir: the node's own keys join every case of a sibling oneOf",
+    "schema": {
+      "properties": {"a": {"type": "integer"}},
+      "required": ["a"],
+      "oneOf": [
+        {"type": "object", "properties": {"b": {"type": "boolean"}}, "required": ["b"]},
+        {"type": "object", "properties": {"c": {"type": "string"}}, "required": ["c"]}
+      ],
+      "unevaluatedProperties": false
+    },
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "anyOf": [
+        {"type": "object", "required": ["a", "b"], "properties": {"a": {"type": "integer"}, "b": {"type": "boolean"}}, "propertyNames": {"enum": ["a", "b"]}},
+        {"type": "object", "required": ["a", "c"], "properties": {"a": {"type": "integer"}, "c": {"type": "string"}}, "propertyNames": {"enum": ["a", "c"]}}
+      ]
+    },
+    "tests": [
+      {"data": {"a": 1, "b": true}, "valid": true},
+      {"data": {"a": 1, "c": "x"}, "valid": true},
+      {"data": {"a": 1, "b": true, "c": "x"}, "valid": false},
+      {"data": {"b": true}, "valid": false},
+      {"data": {"a": 1, "b": true, "d": 1}, "valid": false},
+      {"data": 1, "valid": false},
+      {"data": "x", "valid": false}
+    ]
+  },
+  {
+    "description": "ir: oneOf branches every object matches leave no object with exactly one",
+    "schema": {
+      "type": "object",
+      "oneOf": [{"properties": {"b": true}}, {"properties": {"c": true}}],
+      "unevaluatedProperties": false
+    },
+    "satisfiable": false,
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "not": {}
+    },
+    "tests": [
+      {"data": {}, "valid": false},
+      {"data": {"b": 1}, "valid": false},
+      {"data": {"b": 1, "c": 1}, "valid": false},
+      {"data": 1, "valid": false}
+    ]
+  },
+  {
+    "description": "ir: anyOf branches every object matches close over the union of their keys",
+    "schemas": [
+      {
+        "type": "object",
+        "anyOf": [{"properties": {"b": true}}, {"properties": {"c": true}}],
+        "unevaluatedProperties": false
+      },
+      {"type": "object", "properties": {"b": true, "c": true}, "additionalProperties": false}
+    ],
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "propertyNames": {"enum": ["b", "c"]}
+    },
+    "tests": [
+      {"data": {}, "valid": true},
+      {"data": {"b": 1}, "valid": true},
+      {"data": {"b": 1, "c": 1}, "valid": true},
+      {"data": {"d": 1}, "valid": false},
+      {"data": 1, "valid": false}
+    ]
+  },
+  {
+    "description": "ir: untyped oneOf branches both pass a non-object, which fails the choice",
+    "schema": {
+      "oneOf": [
+        {"properties": {"b": {}}, "required": ["b"]},
+        {"properties": {"c": {}}, "required": ["c"]}
+      ],
+      "unevaluatedProperties": false
+    },
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "anyOf": [
+        {"type": "object", "required": ["b"], "propertyNames": {"const": "b"}},
+        {"type": "object", "required": ["c"], "propertyNames": {"const": "c"}}
+      ]
+    },
+    "tests": [
+      {"data": 1, "valid": false},
+      {"data": "x", "valid": false},
+      {"data": null, "valid": false},
+      {"data": [], "valid": false},
+      {"data": {"b": 1}, "valid": true},
+      {"data": {"c": 1}, "valid": true},
+      {"data": {"b": 1, "c": 1}, "valid": false},
+      {"data": {}, "valid": false},
+      {"data": {"b": 1, "d": 1}, "valid": false}
+    ]
+  },
+  {
+    "description": "ir: untyped anyOf branches both pass a non-object, which the choice admits",
+    "schema": {
+      "anyOf": [
+        {"properties": {"b": {}}, "required": ["b"]},
+        {"properties": {"c": {}}, "required": ["c"]}
+      ],
+      "unevaluatedProperties": false
+    },
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "anyOf": [
+        {"type": ["null", "boolean", "number", "string", "array"]},
+        {"type": "object", "required": ["b"], "propertyNames": {"const": "b"}},
+        {"type": "object", "required": ["b", "c"], "propertyNames": {"enum": ["b", "c"]}},
+        {"type": "object", "required": ["c"], "propertyNames": {"const": "c"}}
+      ]
+    },
+    "tests": [
+      {"data": 1, "valid": true},
+      {"data": "x", "valid": true},
+      {"data": null, "valid": true},
+      {"data": [], "valid": true},
+      {"data": {"b": 1}, "valid": true},
+      {"data": {"c": 1}, "valid": true},
+      {"data": {"b": 1, "c": 1}, "valid": true},
+      {"data": {}, "valid": false},
+      {"data": {"b": 1, "d": 1}, "valid": false}
+    ]
+  },
+  {
+    "description": "ir: a branch pattern names the keys its cases evaluate",
+    "schema": {
+      "type": "object",
+      "anyOf": [
+        {"patternProperties": {"^x": {"type": "integer"}}, "required": ["x1"]},
+        {"properties": {"c": {"type": "string"}}, "required": ["c"]}
+      ],
+      "unevaluatedProperties": false
+    },
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "anyOf": [
+        {"type": "object", "required": ["c"], "properties": {"c": {"type": "string"}}, "propertyNames": {"const": "c"}},
+        {"type": "object", "required": ["c", "x1"], "properties": {"c": {"type": "string"}}, "patternProperties": {"^x": {"type": "integer"}}, "propertyNames": {"anyOf": [{"type": "string", "pattern": "^x"}, {"const": "c"}]}},
+        {"type": "object", "required": ["x1"], "patternProperties": {"^x": {"type": "integer"}}, "propertyNames": {"type": "string", "pattern": "^x"}}
+      ]
+    },
+    "tests": [
+      {"data": {"x1": 1}, "valid": true},
+      {"data": {"x1": 1, "xy": 2}, "valid": true},
+      {"data": {"c": "s"}, "valid": true},
+      {"data": {"x1": 1, "c": "s"}, "valid": true},
+      {"data": {"x1": 1, "d": 1}, "valid": false},
+      {"data": {"c": "s", "x1": "no"}, "valid": false},
+      {"data": {"c": "s", "xy": 1}, "valid": false},
+      {"data": {}, "valid": false}
+    ]
+  },
+  {
+    "description": "ir: a branch additionalProperties reaches every key in its cases",
+    "schema": {
+      "type": "object",
+      "oneOf": [
+        {"additionalProperties": {"type": "integer"}, "required": ["n"]},
+        {"properties": {"c": {"type": "string"}}, "required": ["c"]}
+      ],
+      "unevaluatedProperties": false
+    },
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "anyOf": [
+        {"type": "object", "required": ["c"], "properties": {"c": {"type": "string"}}, "propertyNames": {"const": "c"}},
+        {"type": "object", "required": ["n"], "properties": {"c": {"type": "integer"}}, "additionalProperties": {"type": "integer"}}
+      ]
+    },
+    "tests": [
+      {"data": {"n": 1}, "valid": true},
+      {"data": {"n": 1, "z": 2}, "valid": true},
+      {"data": {"c": "s"}, "valid": true},
+      {"data": {"c": "s", "z": 1}, "valid": false},
+      {"data": {"n": 1, "c": "s"}, "valid": false},
+      {"data": {"n": 1, "c": 2}, "valid": true},
+      {"data": {}, "valid": false},
+      {"data": {"n": "s"}, "valid": false}
+    ]
+  },
+  {
+    "description": "ir: oneOf branches with different tuple lengths split into one case per branch",
+    "schema": {
+      "type": "array",
+      "oneOf": [
+        {"prefixItems": [{"type": "integer"}], "minItems": 1},
+        {"prefixItems": [{"type": "integer"}, {"type": "integer"}], "minItems": 2}
+      ],
+      "unevaluatedItems": false
+    },
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "array",
+      "prefixItems": [{"type": "integer"}],
+      "minItems": 1,
+      "maxItems": 1
+    },
+    "tests": [
+      {"data": [1], "valid": true},
+      {"data": [1, 2], "valid": false},
+      {"data": [1, "x"], "valid": false},
+      {"data": [], "valid": false},
+      {"data": [1, 2, 3], "valid": false},
+      {"data": {}, "valid": false},
+      {"data": 1, "valid": false}
+    ]
+  },
+  {
+    "description": "raw: an anyOf past the case budget keeps the document raw",
+    "schema": {
+      "type": "object",
+      "anyOf": [
+        {"properties": {"p1": {}}, "required": ["p1"]},
+        {"properties": {"p2": {}}, "required": ["p2"]},
+        {"properties": {"p3": {}}, "required": ["p3"]},
+        {"properties": {"p4": {}}, "required": ["p4"]},
+        {"properties": {"p5": {}}, "required": ["p5"]},
+        {"properties": {"p6": {}}, "required": ["p6"]},
+        {"properties": {"p7": {}}, "required": ["p7"]},
+        {"properties": {"p8": {}}, "required": ["p8"]}
+      ],
+      "unevaluatedProperties": false
+    },
+    "kind": "raw",
+    "expected": {
+      "type": "object",
+      "anyOf": [
+        {"properties": {"p1": {}}, "required": ["p1"]},
+        {"properties": {"p2": {}}, "required": ["p2"]},
+        {"properties": {"p3": {}}, "required": ["p3"]},
+        {"properties": {"p4": {}}, "required": ["p4"]},
+        {"properties": {"p5": {}}, "required": ["p5"]},
+        {"properties": {"p6": {}}, "required": ["p6"]},
+        {"properties": {"p7": {}}, "required": ["p7"]},
+        {"properties": {"p8": {}}, "required": ["p8"]}
+      ],
+      "unevaluatedProperties": false
+    },
+    "tests": [
+      {"data": {"p1": 1}, "valid": true},
+      {"data": {"p1": 1, "p8": 1}, "valid": true},
+      {"data": {"x": 1}, "valid": false},
+      {"data": {}, "valid": false}
+    ]
+  },
+  {
+    "description": "ir: an agreeing alternative inside an allOf branch contributes its shared keys",
+    "schemas": [
+      {
+        "type": "object",
+        "allOf": [{"anyOf": [{"properties": {"a": {"type": "integer"}}}, {"properties": {"a": {"type": "boolean"}}}]}],
+        "unevaluatedProperties": false
+      },
+      {
+        "type": "object",
+        "anyOf": [{"properties": {"a": {"type": "integer"}}}, {"properties": {"a": {"type": "boolean"}}}],
+        "unevaluatedProperties": false
+      }
+    ],
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {"a": {"type": ["boolean", "integer"]}},
+      "propertyNames": {"const": "a"},
+      "type": "object"
+    },
+    "tests": [
+      {"data": {"a": 1}, "valid": true},
+      {"data": {"a": true}, "valid": true},
+      {"data": {}, "valid": true},
+      {"data": {"b": 1}, "valid": false},
+      {"data": {"a": "x"}, "valid": false}
+    ]
+  },
+  {
+    "description": "ir: an alternative nested in a passing branch splits too",
+    "schema": {
+      "type": "object",
+      "anyOf": [
+        {
+          "properties": {"b": {"type": "boolean"}},
+          "required": ["b"],
+          "oneOf": [
+            {"properties": {"d": {"type": "integer"}}, "required": ["d"]},
+            {"properties": {"e": {"type": "integer"}}, "required": ["e"]}
+          ]
+        },
+        {"properties": {"c": {"type": "string"}}, "required": ["c"]}
+      ],
+      "unevaluatedProperties": false
+    },
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "anyOf": [
+        {"type": "object", "required": ["b", "c", "d"], "properties": {"b": {"type": "boolean"}, "c": {"type": "string"}, "d": {"type": "integer"}}, "propertyNames": {"enum": ["b", "c", "d"]}},
+        {"type": "object", "required": ["b", "c", "e"], "properties": {"b": {"type": "boolean"}, "c": {"type": "string"}, "e": {"type": "integer"}}, "propertyNames": {"enum": ["b", "c", "e"]}},
+        {"type": "object", "required": ["b", "d"], "properties": {"b": {"type": "boolean"}, "d": {"type": "integer"}}, "propertyNames": {"enum": ["b", "d"]}},
+        {"type": "object", "required": ["b", "e"], "properties": {"b": {"type": "boolean"}, "e": {"type": "integer"}}, "propertyNames": {"enum": ["b", "e"]}},
+        {"type": "object", "required": ["c"], "properties": {"c": {"type": "string"}}, "propertyNames": {"const": "c"}}
+      ]
+    },
+    "tests": [
+      {"data": {"b": true, "d": 1}, "valid": true},
+      {"data": {"b": true, "e": 1}, "valid": true},
+      {"data": {"b": true, "d": 1, "e": 1}, "valid": false},
+      {"data": {"c": "s"}, "valid": true},
+      {"data": {"b": true, "d": 1, "c": "s"}, "valid": true},
+      {"data": {"b": true, "c": "s"}, "valid": false},
+      {"data": {"c": "s", "d": 1}, "valid": false},
+      {"data": {"b": true, "d": "x"}, "valid": false},
+      {"data": {}, "valid": false}
+    ]
+  },
+  {
+    "description": "ir: a split conditional beside an agreeing alternative keeps the alternative's keys",
+    "schema": {
+      "type": "object",
+      "properties": {"k": {}},
+      "anyOf": [{"properties": {"a": {"type": "integer"}}}, {"properties": {"a": {"type": "boolean"}}}],
+      "if": {"required": ["k"]},
+      "then": {"properties": {"t": {}}},
+      "unevaluatedProperties": false
+    },
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "anyOf": [
+        {"type": "object", "properties": {"a": {"type": ["boolean", "integer"]}}, "propertyNames": {"enum": ["a", "k"]}},
+        {"type": "object", "required": ["k"], "properties": {"a": {"type": ["boolean", "integer"]}}, "propertyNames": {"enum": ["a", "k", "t"]}}
+      ]
+    },
+    "tests": [
+      {"data": {"k": 1, "t": 1, "a": 1}, "valid": true},
+      {"data": {"t": 1}, "valid": false},
+      {"data": {"a": true}, "valid": true},
+      {"data": {"a": "x"}, "valid": false},
+      {"data": {"k": 1, "a": 1, "t": 1, "z": 1}, "valid": false},
+      {"data": {}, "valid": true}
+    ]
+  },
+  {
+    "description": "ir: an allOf of one object branch beside unevaluatedProperties closes over its keys",
+    "schemas": [
+      {"allOf": [{"type": "object", "properties": {"a": {"type": "integer"}}, "required": ["a"]}], "unevaluatedProperties": false},
+      {"type": "object", "properties": {"a": {"type": "integer"}}, "required": ["a"], "additionalProperties": false}
+    ],
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "required": ["a"],
+      "properties": {"a": {"type": "integer"}},
+      "propertyNames": {"const": "a"}
+    },
+    "tests": [
+      {"data": {"a": 1}, "valid": true},
+      {"data": {"a": 1, "b": 1}, "valid": false},
+      {"data": {}, "valid": false},
+      {"data": 1, "valid": false}
+    ]
+  },
+  {
+    "description": "ir: an allOf of two object branches beside unevaluatedProperties closes over both",
+    "schemas": [
+      {
+        "allOf": [
+          {"type": "object", "properties": {"a": {"type": "integer"}}, "required": ["a"]},
+          {"type": "object", "properties": {"b": {"type": "boolean"}}, "required": ["b"]}
+        ],
+        "unevaluatedProperties": false
+      },
+      {"type": "object", "properties": {"a": {"type": "integer"}, "b": {"type": "boolean"}}, "required": ["a", "b"], "additionalProperties": false}
+    ],
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "required": ["a", "b"],
+      "properties": {"a": {"type": "integer"}, "b": {"type": "boolean"}},
+      "propertyNames": {"enum": ["a", "b"]}
+    },
+    "tests": [
+      {"data": {"a": 1, "b": true}, "valid": true},
+      {"data": {"a": 1}, "valid": false},
+      {"data": {"a": 1, "b": true, "c": 1}, "valid": false},
+      {"data": 1, "valid": false}
+    ]
+  },
+  {
+    "description": "ir: a conditional branch after an agreeing alternative branch still splits",
+    "schema": {
+      "type": "object",
+      "allOf": [
+        {"anyOf": [{"properties": {"a": {"type": "integer"}}}, {"properties": {"a": {"type": "boolean"}}}]},
+        {"if": {"required": ["a"]}, "then": {"properties": {"t": {}}}}
+      ],
+      "unevaluatedProperties": false
+    },
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "anyOf": [
+        {"type": "object", "required": ["a"], "properties": {"a": {"type": ["boolean", "integer"]}}, "propertyNames": {"enum": ["a", "t"]}},
+        {"const": {}}
+      ]
+    },
+    "tests": [
+      {"data": {"a": 1, "t": 1}, "valid": true},
+      {"data": {"a": true}, "valid": true},
+      {"data": {"a": "x"}, "valid": false},
+      {"data": {"t": 1}, "valid": false},
+      {"data": {}, "valid": true},
+      {"data": {"a": 1, "z": 1}, "valid": false}
+    ]
+  },
+  {
+    "description": "ir: alternatives reaching only keys the node names need no case",
+    "schema": {
+      "type": "object",
+      "properties": {"a": {}, "b": {}},
+      "anyOf": [
+        {"properties": {"a": {"type": "integer"}}, "required": ["a"]},
+        {"properties": {"b": {"type": "integer"}}, "required": ["b"]}
+      ],
+      "unevaluatedProperties": false
+    },
+    "expected": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "anyOf": [
+        {"type": "object", "required": ["a"], "properties": {"a": {"type": "integer"}}, "propertyNames": {"enum": ["a", "b"]}},
+        {"type": "object", "required": ["b"], "properties": {"b": {"type": "integer"}}, "propertyNames": {"enum": ["a", "b"]}}
+      ]
+    },
+    "tests": [
+      {"data": {"a": 1}, "valid": true},
+      {"data": {"b": 1}, "valid": true},
+      {"data": {"a": 1, "b": "x"}, "valid": true},
+      {"data": {"a": "x", "b": "x"}, "valid": false},
+      {"data": {"a": 1, "c": 1}, "valid": false},
+      {"data": {}, "valid": false}
+    ]
+  },
+  {
+    "description": "ir: an agreeing alternative whose branch declares an anchor reads in place",
+    "schema": {"anyOf": [{"$anchor": "x", "properties": {"b": true}}, {"properties": {"b": true}}], "unevaluatedProperties": false},
+    "expected": {"$schema": "https://json-schema.org/draft/2020-12/schema", "anyOf": [{"type": ["null", "boolean", "number", "string", "array"]}, {"type": "object", "propertyNames": {"const": "b"}}]},
+    "tests": [
+      {"data": {"b": 1}, "valid": true},
+      {"data": {}, "valid": true},
+      {"data": {"c": 1}, "valid": false},
+      {"data": 1, "valid": true}
+    ]
+  },
+  {
+    "description": "ir: an agreeing alternative whose branch declares an identifier reads in place",
+    "schema": {"oneOf": [{"$id": "https://example.com/branch", "properties": {"b": true}, "required": ["b"]}, {"properties": {"b": true}, "required": ["c"]}], "unevaluatedProperties": false},
+    "expected": {"$schema": "https://json-schema.org/draft/2020-12/schema", "type": "object", "required": ["b"], "propertyNames": {"const": "b"}},
+    "tests": [
+      {"data": {"b": 1}, "valid": true},
+      {"data": {"b": 1, "c": 1}, "valid": false},
+      {"data": {}, "valid": false},
+      {"data": 1, "valid": false}
+    ]
+  },
+  {
+    "description": "raw: disagreeing alternatives whose branch declares an anchor keep the document raw",
+    "schema": {"oneOf": [{"type": "object", "properties": {"b": {"type": "boolean"}}, "required": ["b"], "$anchor": "x"}, {"type": "object", "properties": {"c": {"type": "string"}}, "required": ["c"]}], "unevaluatedProperties": false},
+    "kind": "raw",
+    "expected": {"oneOf": [{"type": "object", "properties": {"b": {"type": "boolean"}}, "required": ["b"], "$anchor": "x"}, {"type": "object", "properties": {"c": {"type": "string"}}, "required": ["c"]}], "unevaluatedProperties": false},
+    "tests": [
+      {"data": {"b": true}, "valid": true},
+      {"data": {"c": "x"}, "valid": true},
+      {"data": {"b": true, "z": 1}, "valid": false},
+      {"data": {"b": true, "c": "x"}, "valid": false}
+    ]
+  },
+  {
+    "description": "raw: a split branch referencing a target of another draft keeps the document raw",
+    "schema": {"type": "object", "$defs": {"old": {"$id": "https://example.com/old", "$schema": "http://json-schema.org/draft-07/schema#", "properties": {"b": {}}, "required": ["b"]}}, "oneOf": [{"$ref": "https://example.com/old"}, {"type": "object", "properties": {"c": {"type": "string"}}, "required": ["c"]}], "unevaluatedProperties": false},
+    "kind": "raw",
+    "expected": {"type": "object", "$defs": {"old": {"$id": "https://example.com/old", "$schema": "http://json-schema.org/draft-07/schema#", "properties": {"b": {}}, "required": ["b"]}}, "oneOf": [{"$ref": "https://example.com/old"}, {"type": "object", "properties": {"c": {"type": "string"}}, "required": ["c"]}], "unevaluatedProperties": false},
+    "tests": [
+      {"data": {"b": 1}, "valid": true},
+      {"data": {"c": "x"}, "valid": true},
+      {"data": {"b": 1, "z": 1}, "valid": false},
+      {"data": {"b": 1, "c": "x"}, "valid": false}
+    ]
+  },
+  {
+    "description": "ir: a branch closing over alternatives of its own splits the outer choice",
+    "schema": {"oneOf": [{"oneOf": [{"type": "object", "properties": {"b": {"type": "boolean"}}, "required": ["b"]}, {"type": "object", "properties": {"c": {"type": "string"}}, "required": ["c"]}], "unevaluatedProperties": false}, {"type": "object", "required": ["d"], "properties": {"d": true}}], "unevaluatedProperties": false},
+    "expected": {"$schema": "https://json-schema.org/draft/2020-12/schema", "anyOf": [{"type": "object", "required": ["b"], "properties": {"b": {"type": "boolean"}}, "propertyNames": {"const": "b"}}, {"type": "object", "required": ["c"], "properties": {"c": {"type": "string"}}, "propertyNames": {"const": "c"}}, {"type": "object", "required": ["d"], "propertyNames": {"const": "d"}}]},
+    "tests": [
+      {"data": {"b": true}, "valid": true},
+      {"data": {"c": "x"}, "valid": true},
+      {"data": {"d": 1}, "valid": true},
+      {"data": {"b": true, "d": 1}, "valid": false},
+      {"data": {"b": 1}, "valid": false},
+      {"data": {}, "valid": false},
+      {"data": 1, "valid": false}
+    ]
+  },
+  {
+    "description": "ir: a branch closing over tuples of its own splits the outer choice",
+    "schema": {"type": "array", "oneOf": [{"oneOf": [{"prefixItems": [true], "minItems": 1, "maxItems": 1}, {"prefixItems": [true, true], "minItems": 2, "maxItems": 2}], "unevaluatedItems": false}, {"prefixItems": [true, true, true], "minItems": 3}], "unevaluatedItems": false},
+    "expected": {"$schema": "https://json-schema.org/draft/2020-12/schema", "type": "array", "minItems": 1, "maxItems": 3},
+    "tests": [
+      {"data": [1], "valid": true},
+      {"data": [1, 2], "valid": true},
+      {"data": [1, 2, 3], "valid": true},
+      {"data": [], "valid": false},
+      {"data": [1, 2, 3, 4], "valid": false},
+      {"data": "x", "valid": false}
+    ]
+  },
+  {
+    "description": "ir: a oneOf with more branches than an anyOf could split takes one case per branch",
+    "schema": {"oneOf": [{"type": "object", "required": ["k0"], "properties": {"k0": true}}, {"type": "object", "required": ["k1"], "properties": {"k1": true}}, {"type": "object", "required": ["k2"], "properties": {"k2": true}}, {"type": "object", "required": ["k3"], "properties": {"k3": true}}, {"type": "object", "required": ["k4"], "properties": {"k4": true}}, {"type": "object", "required": ["k5"], "properties": {"k5": true}}, {"type": "object", "required": ["k6"], "properties": {"k6": true}}, {"type": "object", "required": ["k7"], "properties": {"k7": true}}, {"type": "object", "required": ["k8"], "properties": {"k8": true}}, {"type": "object", "required": ["k9"], "properties": {"k9": true}}, {"type": "object", "required": ["k10"], "properties": {"k10": true}}, {"type": "object", "required": ["k11"], "properties": {"k11": true}}, {"type": "object", "required": ["k12"], "properties": {"k12": true}}, {"type": "object", "required": ["k13"], "properties": {"k13": true}}, {"type": "object", "required": ["k14"], "properties": {"k14": true}}, {"type": "object", "required": ["k15"], "properties": {"k15": true}}, {"type": "object", "required": ["k16"], "properties": {"k16": true}}, {"type": "object", "required": ["k17"], "properties": {"k17": true}}, {"type": "object", "required": ["k18"], "properties": {"k18": true}}, {"type": "object", "required": ["k19"], "properties": {"k19": true}}, {"type": "object", "required": ["k20"], "properties": {"k20": true}}, {"type": "object", "required": ["k21"], "properties": {"k21": true}}, {"type": "object", "required": ["k22"], "properties": {"k22": true}}, {"type": "object", "required": ["k23"], "properties": {"k23": true}}, {"type": "object", "required": ["k24"], "properties": {"k24": true}}, {"type": "object", "required": ["k25"], "properties": {"k25": true}}, {"type": "object", "required": ["k26"], "properties": {"k26": true}}, {"type": "object", "required": ["k27"], "properties": {"k27": true}}, {"type": "object", "required": ["k28"], "properties": {"k28": true}}, {"type": "object", "required": ["k29"], "properties": {"k29": true}}, {"type": "object", "required": ["k30"], "properties": {"k30": true}}, {"type": "object", "required": ["k31"], "properties": {"k31": true}}, {"type": "object", "required": ["k32"], "properties": {"k32": true}}, {"type": "object", "required": ["k33"], "properties": {"k33": true}}, {"type": "object", "required": ["k34"], "properties": {"k34": true}}, {"type": "object", "required": ["k35"], "properties": {"k35": true}}, {"type": "object", "required": ["k36"], "properties": {"k36": true}}, {"type": "object", "required": ["k37"], "properties": {"k37": true}}, {"type": "object", "required": ["k38"], "properties": {"k38": true}}, {"type": "object", "required": ["k39"], "properties": {"k39": true}}, {"type": "object", "required": ["k40"], "properties": {"k40": true}}, {"type": "object", "required": ["k41"], "properties": {"k41": true}}, {"type": "object", "required": ["k42"], "properties": {"k42": true}}, {"type": "object", "required": ["k43"], "properties": {"k43": true}}, {"type": "object", "required": ["k44"], "properties": {"k44": true}}, {"type": "object", "required": ["k45"], "properties": {"k45": true}}, {"type": "object", "required": ["k46"], "properties": {"k46": true}}, {"type": "object", "required": ["k47"], "properties": {"k47": true}}, {"type": "object", "required": ["k48"], "properties": {"k48": true}}, {"type": "object", "required": ["k49"], "properties": {"k49": true}}, {"type": "object", "required": ["k50"], "properties": {"k50": true}}, {"type": "object", "required": ["k51"], "properties": {"k51": true}}, {"type": "object", "required": ["k52"], "properties": {"k52": true}}, {"type": "object", "required": ["k53"], "properties": {"k53": true}}, {"type": "object", "required": ["k54"], "properties": {"k54": true}}, {"type": "object", "required": ["k55"], "properties": {"k55": true}}, {"type": "object", "required": ["k56"], "properties": {"k56": true}}, {"type": "object", "required": ["k57"], "properties": {"k57": true}}, {"type": "object", "required": ["k58"], "properties": {"k58": true}}, {"type": "object", "required": ["k59"], "properties": {"k59": true}}, {"type": "object", "required": ["k60"], "properties": {"k60": true}}, {"type": "object", "required": ["k61"], "properties": {"k61": true}}, {"type": "object", "required": ["k62"], "properties": {"k62": true}}, {"type": "object", "required": ["k63"], "properties": {"k63": true}}, {"type": "object", "required": ["k64"], "properties": {"k64": true}}], "unevaluatedProperties": false},
+    "expected": {"$schema": "https://json-schema.org/draft/2020-12/schema", "anyOf": [{"type": "object", "required": ["k0"], "propertyNames": {"const": "k0"}}, {"type": "object", "required": ["k1"], "propertyNames": {"const": "k1"}}, {"type": "object", "required": ["k10"], "propertyNames": {"const": "k10"}}, {"type": "object", "required": ["k11"], "propertyNames": {"const": "k11"}}, {"type": "object", "required": ["k12"], "propertyNames": {"const": "k12"}}, {"type": "object", "required": ["k13"], "propertyNames": {"const": "k13"}}, {"type": "object", "required": ["k14"], "propertyNames": {"const": "k14"}}, {"type": "object", "required": ["k15"], "propertyNames": {"const": "k15"}}, {"type": "object", "required": ["k16"], "propertyNames": {"const": "k16"}}, {"type": "object", "required": ["k17"], "propertyNames": {"const": "k17"}}, {"type": "object", "required": ["k18"], "propertyNames": {"const": "k18"}}, {"type": "object", "required": ["k19"], "propertyNames": {"const": "k19"}}, {"type": "object", "required": ["k2"], "propertyNames": {"const": "k2"}}, {"type": "object", "required": ["k20"], "propertyNames": {"const": "k20"}}, {"type": "object", "required": ["k21"], "propertyNames": {"const": "k21"}}, {"type": "object", "required": ["k22"], "propertyNames": {"const": "k22"}}, {"type": "object", "required": ["k23"], "propertyNames": {"const": "k23"}}, {"type": "object", "required": ["k24"], "propertyNames": {"const": "k24"}}, {"type": "object", "required": ["k25"], "propertyNames": {"const": "k25"}}, {"type": "object", "required": ["k26"], "propertyNames": {"const": "k26"}}, {"type": "object", "required": ["k27"], "propertyNames": {"const": "k27"}}, {"type": "object", "required": ["k28"], "propertyNames": {"const": "k28"}}, {"type": "object", "required": ["k29"], "propertyNames": {"const": "k29"}}, {"type": "object", "required": ["k3"], "propertyNames": {"const": "k3"}}, {"type": "object", "required": ["k30"], "propertyNames": {"const": "k30"}}, {"type": "object", "required": ["k31"], "propertyNames": {"const": "k31"}}, {"type": "object", "required": ["k32"], "propertyNames": {"const": "k32"}}, {"type": "object", "required": ["k33"], "propertyNames": {"const": "k33"}}, {"type": "object", "required": ["k34"], "propertyNames": {"const": "k34"}}, {"type": "object", "required": ["k35"], "propertyNames": {"const": "k35"}}, {"type": "object", "required": ["k36"], "propertyNames": {"const": "k36"}}, {"type": "object", "required": ["k37"], "propertyNames": {"const": "k37"}}, {"type": "object", "required": ["k38"], "propertyNames": {"const": "k38"}}, {"type": "object", "required": ["k39"], "propertyNames": {"const": "k39"}}, {"type": "object", "required": ["k4"], "propertyNames": {"const": "k4"}}, {"type": "object", "required": ["k40"], "propertyNames": {"const": "k40"}}, {"type": "object", "required": ["k41"], "propertyNames": {"const": "k41"}}, {"type": "object", "required": ["k42"], "propertyNames": {"const": "k42"}}, {"type": "object", "required": ["k43"], "propertyNames": {"const": "k43"}}, {"type": "object", "required": ["k44"], "propertyNames": {"const": "k44"}}, {"type": "object", "required": ["k45"], "propertyNames": {"const": "k45"}}, {"type": "object", "required": ["k46"], "propertyNames": {"const": "k46"}}, {"type": "object", "required": ["k47"], "propertyNames": {"const": "k47"}}, {"type": "object", "required": ["k48"], "propertyNames": {"const": "k48"}}, {"type": "object", "required": ["k49"], "propertyNames": {"const": "k49"}}, {"type": "object", "required": ["k5"], "propertyNames": {"const": "k5"}}, {"type": "object", "required": ["k50"], "propertyNames": {"const": "k50"}}, {"type": "object", "required": ["k51"], "propertyNames": {"const": "k51"}}, {"type": "object", "required": ["k52"], "propertyNames": {"const": "k52"}}, {"type": "object", "required": ["k53"], "propertyNames": {"const": "k53"}}, {"type": "object", "required": ["k54"], "propertyNames": {"const": "k54"}}, {"type": "object", "required": ["k55"], "propertyNames": {"const": "k55"}}, {"type": "object", "required": ["k56"], "propertyNames": {"const": "k56"}}, {"type": "object", "required": ["k57"], "propertyNames": {"const": "k57"}}, {"type": "object", "required": ["k58"], "propertyNames": {"const": "k58"}}, {"type": "object", "required": ["k59"], "propertyNames": {"const": "k59"}}, {"type": "object", "required": ["k6"], "propertyNames": {"const": "k6"}}, {"type": "object", "required": ["k60"], "propertyNames": {"const": "k60"}}, {"type": "object", "required": ["k61"], "propertyNames": {"const": "k61"}}, {"type": "object", "required": ["k62"], "propertyNames": {"const": "k62"}}, {"type": "object", "required": ["k63"], "propertyNames": {"const": "k63"}}, {"type": "object", "required": ["k64"], "propertyNames": {"const": "k64"}}, {"type": "object", "required": ["k7"], "propertyNames": {"const": "k7"}}, {"type": "object", "required": ["k8"], "propertyNames": {"const": "k8"}}, {"type": "object", "required": ["k9"], "propertyNames": {"const": "k9"}}]},
+    "tests": [
+      {"data": {"k0": 1}, "valid": true},
+      {"data": {"k64": 1}, "valid": true},
+      {"data": {"k0": 1, "k1": 1}, "valid": false},
+      {"data": {}, "valid": false},
+      {"data": 1, "valid": false}
+    ]
+  },
+  {
+    "description": "ir: alternatives whose branches split tuples of their own split too",
+    "schema": {"type": "array", "anyOf": [{"oneOf": [{"prefixItems": [true], "minItems": 1, "maxItems": 1}, {"prefixItems": [true, true], "minItems": 2, "maxItems": 2}]}, {"oneOf": [{"prefixItems": [true], "minItems": 1, "maxItems": 1}, {"prefixItems": [true, true], "minItems": 2, "maxItems": 2}]}], "unevaluatedItems": false},
+    "expected": {"$schema": "https://json-schema.org/draft/2020-12/schema", "type": "array", "minItems": 1, "maxItems": 2},
+    "tests": [
+      {"data": [1], "valid": true},
+      {"data": [1, 2], "valid": true},
+      {"data": [], "valid": false},
+      {"data": [1, 2, 3], "valid": false},
+      {"data": "x", "valid": false}
+    ]
+  },
+  {
+    "description": "ir: alternatives whose branches split keys of their own split too",
+    "schema": {"anyOf": [{"oneOf": [{"type": "object", "properties": {"b": {"type": "boolean"}}, "required": ["b"]}, {"type": "object", "properties": {"c": {"type": "string"}}, "required": ["c"]}]}, {"oneOf": [{"type": "object", "properties": {"b": {"type": "boolean"}}, "required": ["b"]}, {"type": "object", "properties": {"c": {"type": "string"}}, "required": ["c"]}]}], "unevaluatedProperties": false},
+    "expected": {"$schema": "https://json-schema.org/draft/2020-12/schema", "anyOf": [{"type": "object", "required": ["b"], "properties": {"b": {"type": "boolean"}}, "propertyNames": {"const": "b"}}, {"type": "object", "required": ["c"], "properties": {"c": {"type": "string"}}, "propertyNames": {"const": "c"}}]},
+    "tests": [
+      {"data": {"b": true}, "valid": true},
+      {"data": {"c": "x"}, "valid": true},
+      {"data": {"b": true, "c": "x"}, "valid": false},
+      {"data": {"b": true, "z": 1}, "valid": false},
+      {"data": {}, "valid": false}
+    ]
+  },
+  {
+    "description": "ir: alternatives disagreeing only on keys beside an unevaluatedItems read in place",
+    "schema": {"anyOf": [{"properties": {"c": {}}, "additionalProperties": {"type": "integer"}}, {"patternProperties": {"^c": {"type": "integer"}}}], "unevaluatedItems": false},
+    "expected": {"$schema": "https://json-schema.org/draft/2020-12/schema", "anyOf": [{"type": ["null", "boolean", "number", "string"]}, {"type": "object", "patternProperties": {"^c": {"type": "integer"}}}, {"type": "object", "properties": {"c": true}, "additionalProperties": {"type": "integer"}}, {"const": []}]},
+    "tests": [
+      {"data": {"c": 1}, "valid": true},
+      {"data": {"c": "x"}, "valid": true},
+      {"data": {"x": "s"}, "valid": true},
+      {"data": {"cx": "s", "d": "s"}, "valid": false},
+      {"data": [], "valid": true},
+      {"data": [1], "valid": false},
+      {"data": 1, "valid": true}
+    ]
+  },
+  {
+    "description": "ir: an unevaluatedProperties beside a local additionalProperties ignores a branch referring back to itself",
+    "schema": {"additionalProperties": false, "anyOf": [true, {"$ref": "#/$defs/d"}], "unevaluatedProperties": false, "$defs": {"d": {"type": "object", "oneOf": [{"$ref": "#/$defs/d"}, {"required": ["a"]}]}}},
+    "expected": {"$schema": "https://json-schema.org/draft/2020-12/schema", "anyOf": [{"type": ["null", "boolean", "number", "string", "array"]}, {"const": {}}]},
+    "tests": [
+      {"data": {}, "valid": true},
+      {"data": {"a": 1}, "valid": false},
+      {"data": [1], "valid": true},
+      {"data": 1, "valid": true}
+    ]
+  },
+  {
+    "description": "ir: an unevaluatedProperties beside a local additionalProperties splits no alternative",
+    "schema": {"additionalProperties": true, "anyOf": [{"$ref": "#/$defs/d"}, true], "unevaluatedProperties": {"type": "string"}, "$defs": {"d": {"else": {}}}},
+    "expected": {"$schema": "https://json-schema.org/draft/2020-12/schema"},
+    "tests": [
+      {"data": {}, "valid": true},
+      {"data": {"a": 1}, "valid": true},
+      {"data": [1], "valid": true},
+      {"data": 1, "valid": true}
+    ]
+  },
+  {
+    "description": "ir: alternatives a sibling allOf already reaches past need no case",
+    "schema": {"anyOf": [{"properties": {"a": {"type": "string"}}}, true], "allOf": [{"additionalProperties": {"type": "integer"}}], "unevaluatedProperties": false},
+    "expected": {"$schema": "https://json-schema.org/draft/2020-12/schema", "anyOf": [{"type": ["null", "boolean", "number", "string", "array"]}, {"type": "object", "additionalProperties": {"type": "integer"}}]},
+    "tests": [
+      {"data": {}, "valid": true},
+      {"data": {"a": 1}, "valid": true},
+      {"data": {"a": "s"}, "valid": false},
+      {"data": {"b": 1}, "valid": true},
+      {"data": [1], "valid": true}
+    ]
+  }
+]

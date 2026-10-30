@@ -1,0 +1,6 @@
+{
+  "crate": "cargo-fuzz",
+  "crate_sha256": "5acfd01930e49823e58c30dd8012d3338a620377d7c7d4cc140ca4b2169400e2",
+  "published_lock_sha256": "f64e1eceaceb7be6365539911f45d73bfe7b3afc8370281cca943a8a28b395b3",
+  "version": "0.13.2"
+}

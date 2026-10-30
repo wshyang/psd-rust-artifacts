@@ -1,0 +1,45 @@
+[package]
+name = "krates"
+version = "0.21.2"
+description = "Create graphs of crates gathered from cargo metadata"
+authors = [
+    "Embark <opensource@embark-studios.com>",
+    "Jake Shadle <jake.shadle@embark-studios.com>",
+]
+edition = "2024"
+repository = "https://github.com/EmbarkStudios/krates"
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+documentation = "https://docs.rs/krates"
+homepage = "https://github.com/EmbarkStudios/krates"
+keywords = ["cargo", "metadata", "graph"]
+categories = ["visualization"]
+exclude = [".github", "tests"]
+rust-version = "1.85.0"
+
+[features]
+default = []
+# Adds support for filtering target specific dependencies
+targets = ["cfg-expr/targets"]
+# Enables serialization of the metadata types within krates
+serialize = []
+
+[dependencies]
+camino = { version = "1.1", features = ["serde1"] }
+# Used to parse and evaluate cfg() expressions for dependencies
+cfg-expr = "0.20"
+# Used to create and traverse graph structures
+petgraph = { version = "=0.8.1", default-features = false }
+# Used for checking version requirements
+semver = { version = "1.0", features = ["serde"] }
+serde = "1.0"
+serde_json = "1.0"
+
+[dev-dependencies]
+ktest = { path = "./ktest" }
+
+[profile.dev.package.insta]
+opt-level = 3
+
+[profile.dev.package.similar]
+opt-level = 3

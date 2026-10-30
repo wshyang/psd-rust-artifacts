@@ -1,0 +1,276 @@
+{
+  "chunk_bytes": 50000000,
+  "codec": "gzip",
+  "files": {
+    "rustc-1.99.1-x86_64-unknown-linux-gnu.tar.xz": {
+      "mode": 420,
+      "parts": [
+        {
+          "path": "9b9d434043db87d17a4b45c42785500571c5cd5875a08b4ea8964f95fb34ed9a/part-000000.gz",
+          "sha256": "7a5db4ea2f62c9e2dbd9e50cf6d5fb499d2ab1ca0b5186346f93b4875aaac7a2",
+          "size": 50000000
+        },
+        {
+          "path": "9b9d434043db87d17a4b45c42785500571c5cd5875a08b4ea8964f95fb34ed9a/part-000001.gz",
+          "sha256": "efab74b325dc76b868f4fd9429a7cf4bd0ae890ac0bef9df782f53c14bdd7c57",
+          "size": 34123659
+        }
+      ],
+      "sha256": "2ff05ff9c08a90861e7f6e4065b40a8b87463b4576186fd613871c3e37f2091f",
+      "size": 84098960
+    },
+    "toolchain-1.99.1.tar.xz": {
+      "mode": 420,
+      "parts": [
+        {
+          "path": "2f265fa6f4a8458e535346da20270a04032f3a0c640f2149b6661e8a18774f99/part-000000.gz",
+          "sha256": "5b2d7a69d0821d077ed42b5226533934b046484d0c4806c6a68ea6a3475ef06d",
+          "size": 50000000
+        },
+        {
+          "path": "2f265fa6f4a8458e535346da20270a04032f3a0c640f2149b6661e8a18774f99/part-000001.gz",
+          "sha256": "2c5f957ba911a3e9dbd1ade77377af5d791f7d19e75fda8bff72dc63c83e5e0e",
+          "size": 50000000
+        },
+        {
+          "path": "2f265fa6f4a8458e535346da20270a04032f3a0c640f2149b6661e8a18774f99/part-000002.gz",
+          "sha256": "2247e95959438020956c775d600613e0f41a3b88972726c86f34247ef27fef37",
+          "size": 26661188
+        }
+      ],
+      "sha256": "b7fc7e5d6889b6b14452d647b38e0096ea08b799de6fce7b02f2129bac78ea8e",
+      "size": 126626312
+    },
+    "warehouse-assets/downloads/1.99.1/rustc.tar.xz": {
+      "mode": 420,
+      "parts": [
+        {
+          "path": "b2a64bb8c85a92d34d31dd5cdacd64adc46939c34a633345a9691725e058ea10/part-000000.gz",
+          "sha256": "7a5db4ea2f62c9e2dbd9e50cf6d5fb499d2ab1ca0b5186346f93b4875aaac7a2",
+          "size": 50000000
+        },
+        {
+          "path": "b2a64bb8c85a92d34d31dd5cdacd64adc46939c34a633345a9691725e058ea10/part-000001.gz",
+          "sha256": "efab74b325dc76b868f4fd9429a7cf4bd0ae890ac0bef9df782f53c14bdd7c57",
+          "size": 34123659
+        }
+      ],
+      "sha256": "2ff05ff9c08a90861e7f6e4065b40a8b87463b4576186fd613871c3e37f2091f",
+      "size": 84098960
+    },
+    "warehouse-assets/downloads/nightly-2026-11-09/rustc.tar.xz": {
+      "mode": 420,
+      "parts": [
+        {
+          "path": "c28ee5072cc9b1dafc2780acc2ead972dbe6680838368816c15e2e94b19a4690/part-000000.gz",
+          "sha256": "188885f32af24f39cda0b73489a62045e6ba81d60fc9e7f38e9fb64f18ce2037",
+          "size": 50000000
+        },
+        {
+          "path": "c28ee5072cc9b1dafc2780acc2ead972dbe6680838368816c15e2e94b19a4690/part-000001.gz",
+          "sha256": "9ff26e6b8d4c30ba33a174fc2345f6ea1a266926fe89c12f90613154aa91b337",
+          "size": 34781251
+        }
+      ],
+      "sha256": "b81f26aaa2c30ffef13c586201c2123eb39069f3ffe32d9e44c0f281ed69d858",
+      "size": 84756152
+    },
+    "warehouse-assets/downloads/wasi-sdk-29.0-x86_64-linux.tar.gz": {
+      "mode": 420,
+      "parts": [
+        {
+          "path": "18461dc31e773e9e1aa82940f9c2772a566afe7aa2a27a651664434d117e7660/part-000000.gz",
+          "sha256": "a51eb2f8f1ee7d94e541a15c4e4a45142efbb52f19d56f13aa19b0471b9232b5",
+          "size": 50000000
+        },
+        {
+          "path": "18461dc31e773e9e1aa82940f9c2772a566afe7aa2a27a651664434d117e7660/part-000001.gz",
+          "sha256": "b9426d1f0b7d6c140f9760dc518deef92fec185a4d7c9d85b6eeec8d6881d3e9",
+          "size": 50000000
+        },
+        {
+          "path": "18461dc31e773e9e1aa82940f9c2772a566afe7aa2a27a651664434d117e7660/part-000002.gz",
+          "sha256": "1cb19192ffd33e854067e441c784e4848b48fd2dc5f71ef19748bb90591d4f73",
+          "size": 18806724
+        }
+      ],
+      "sha256": "87d1d1a2879d139cdc624b968efad3d4a97b8078cdff95e63ac88ecafd1a0171",
+      "size": 119441678
+    },
+    "warehouse-assets/runtimes/temporal-test-server/temporal-test-server_1.40.0_linux_amd64/temporal-test-server": {
+      "mode": 493,
+      "parts": [
+        {
+          "path": "15195af7bc326690e36d7f3dfa986456a91dac16f452a2f50ae602c15a5d8eba/part-000000.gz",
+          "sha256": "5d90f2cc15f052979b86acb66ad448d4b4b5349193a5651377215d493852cd93",
+          "size": 27115106
+        }
+      ],
+      "sha256": "19defb9f7318c7cf249518b3642a735efb79876c2b6918afe312336476b796a5",
+      "size": 84478216
+    },
+    "warehouse-assets/runtimes/temporal/temporal": {
+      "mode": 493,
+      "parts": [
+        {
+          "path": "c28a8198584c5d684546f55b23f167cbd06437a3af601a914ed9f88c1d129912/part-000000.gz",
+          "sha256": "60bb521e5695b8d34c85ea06057134248b463f3cb82f967e2dd08077678b3cf9",
+          "size": 37705443
+        }
+      ],
+      "sha256": "6968c86c97d91d4b49e19c0c9b0842bfb5eb2d356f22b989006d1e09164eab5b",
+      "size": 125661346
+    },
+    "warehouse-assets/toolchains/1.99.1/lib/libLLVM.so.23.1-rust-1.99.1-stable": {
+      "mode": 420,
+      "parts": [
+        {
+          "path": "1c3f333f5abdd88497f1e68e3e3ef011ee8031723c277824e6708064f8c5f03d/part-000000.gz",
+          "sha256": "69f411483c8cab91ae47bb3f65bf9a4e20b97da92262891c56413c1c20716c06",
+          "size": 50000000
+        },
+        {
+          "path": "1c3f333f5abdd88497f1e68e3e3ef011ee8031723c277824e6708064f8c5f03d/part-000001.gz",
+          "sha256": "e58c7f1c994c6f6084b41c8a84283a9789492102f182f710b4cbc6f5e7797f7b",
+          "size": 17554672
+        }
+      ],
+      "sha256": "1cfbe1392a767227b88b33ab6187283e281c63f80f9b1ca9010d9cee5fdf9131",
+      "size": 208167760
+    },
+    "warehouse-assets/toolchains/1.99.1/lib/librustc_driver-7ed0375ae352bd75.so": {
+      "mode": 420,
+      "parts": [
+        {
+          "path": "dccf85278336e627b78f538c8b716ec2ba433089044fcadb32f2118827e97b0f/part-000000.gz",
+          "sha256": "8f9fdf33aeeb374f706576f3273d5a887d52df0a4fe1be141c3d72d25b88856b",
+          "size": 50000000
+        },
+        {
+          "path": "dccf85278336e627b78f538c8b716ec2ba433089044fcadb32f2118827e97b0f/part-000001.gz",
+          "sha256": "1e75d556324408076a922511a1a30fc9f2a0f25434ed9d2edabcdac6c1c6bc7d",
+          "size": 12173065
+        }
+      ],
+      "sha256": "5a2cd52edba7d15f8d898b92a912638f5b73a089c7c1bfde5604ab45665602c7",
+      "size": 158240640
+    },
+    "warehouse-assets/toolchains/1.99.1/lib/rustlib/x86_64-unknown-linux-gnu/lib/libLLVM.so.23.1-rust-1.99.1-stable": {
+      "mode": 420,
+      "parts": [
+        {
+          "path": "95307231371b4912a214ab694796e4482940a4096b1f4c954e3bcfa513341bb2/part-000000.gz",
+          "sha256": "69f411483c8cab91ae47bb3f65bf9a4e20b97da92262891c56413c1c20716c06",
+          "size": 50000000
+        },
+        {
+          "path": "95307231371b4912a214ab694796e4482940a4096b1f4c954e3bcfa513341bb2/part-000001.gz",
+          "sha256": "e58c7f1c994c6f6084b41c8a84283a9789492102f182f710b4cbc6f5e7797f7b",
+          "size": 17554672
+        }
+      ],
+      "sha256": "1cfbe1392a767227b88b33ab6187283e281c63f80f9b1ca9010d9cee5fdf9131",
+      "size": 208167760
+    },
+    "warehouse-assets/toolchains/1.99.1/lib/rustlib/x86_64-unknown-linux-gnu/lib/libcore-1d288395a3394ed3.rmeta": {
+      "mode": 420,
+      "parts": [
+        {
+          "path": "8623354d78dc1533a1b3131f6d7a658c86e1a541881ed60a4e8e933347abee1d/part-000000.gz",
+          "sha256": "d22f25e0768c701ba759b68917d37d922140b8c9f06182173493d750215594f4",
+          "size": 19153599
+        }
+      ],
+      "sha256": "f991bfdb98d878590ba8a11da984bc230a078ee8079e27fcfd65854803b436f5",
+      "size": 67966594
+    },
+    "warehouse-assets/toolchains/nightly-2026-11-09/lib/libLLVM.so.23.1-rust-1.102.0-nightly": {
+      "mode": 420,
+      "parts": [
+        {
+          "path": "e61b029c32546de1c905411551fd6ae083eea7af1f049a3a3d025ab2542cd8f0/part-000000.gz",
+          "sha256": "589ca6bc07a70cd41f220773b9afa6b5c210a1e924e6300a8c3daea2775a9bf2",
+          "size": 50000000
+        },
+        {
+          "path": "e61b029c32546de1c905411551fd6ae083eea7af1f049a3a3d025ab2542cd8f0/part-000001.gz",
+          "sha256": "107ffa89523dc0632b63eb25a59eb9ee5a1b36147fcd6dd9151184ba4131413f",
+          "size": 17625905
+        }
+      ],
+      "sha256": "5b12901d3a06a2eca8eae8e0781f678a6b2213740e2754f90dc22aef3f23dc21",
+      "size": 208283952
+    },
+    "warehouse-assets/toolchains/nightly-2026-11-09/lib/librustc_driver-f21b5e769b80ce6a.so": {
+      "mode": 420,
+      "parts": [
+        {
+          "path": "5d2889272e723a03137810a398cbff87616459093f610252b3da1f5ad444d676/part-000000.gz",
+          "sha256": "7fc77a4382633443c5349c92b2bbdaac54d7d72ca5ed44c1010412938423efd5",
+          "size": 50000000
+        },
+        {
+          "path": "5d2889272e723a03137810a398cbff87616459093f610252b3da1f5ad444d676/part-000001.gz",
+          "sha256": "6630a2324271f008b6d82b22dddfe183644993bf063237f8768f310219ec2439",
+          "size": 14957978
+        }
+      ],
+      "sha256": "ace7e2aa6ae11ca4c9b1edaf70701fc9390de38dd86bcf16bb8f22d5e658bd72",
+      "size": 164782176
+    },
+    "warehouse-assets/toolchains/nightly-2026-11-09/lib/rustlib/x86_64-unknown-linux-gnu/lib/libLLVM.so.23.1-rust-1.102.0-nightly": {
+      "mode": 420,
+      "parts": [
+        {
+          "path": "e0e98abca41976677d7fcd07eedeb8b45df141a4c50b2b7dccf5e77758ec4df3/part-000000.gz",
+          "sha256": "589ca6bc07a70cd41f220773b9afa6b5c210a1e924e6300a8c3daea2775a9bf2",
+          "size": 50000000
+        },
+        {
+          "path": "e0e98abca41976677d7fcd07eedeb8b45df141a4c50b2b7dccf5e77758ec4df3/part-000001.gz",
+          "sha256": "107ffa89523dc0632b63eb25a59eb9ee5a1b36147fcd6dd9151184ba4131413f",
+          "size": 17625905
+        }
+      ],
+      "sha256": "5b12901d3a06a2eca8eae8e0781f678a6b2213740e2754f90dc22aef3f23dc21",
+      "size": 208283952
+    },
+    "warehouse-assets/toolchains/nightly-2026-11-09/lib/rustlib/x86_64-unknown-linux-gnu/lib/libcore-b13a99ac1c8a27b3.rmeta": {
+      "mode": 420,
+      "parts": [
+        {
+          "path": "9311cdbd8b4e7fa043362bed3e5d5c49abb469225b6dea490c6bcb9eb64c5c8e/part-000000.gz",
+          "sha256": "c46804c0ec0ac4e5051ab52cafc4e6cc22e8d5e471d3c85398d071d3cf54e4a1",
+          "size": 18957573
+        }
+      ],
+      "sha256": "394c67398a935dc62bbd8e31df88ffa10e0fa00fdcd49526f2a577bd7e72c936",
+      "size": 54594630
+    },
+    "warehouse-assets/wasi-sdk/lib/libLLVM.so.21.1-wasi-sdk": {
+      "mode": 493,
+      "parts": [
+        {
+          "path": "92a3be5eb865a3f209d1e9ce8682afa072595e9271684568742da64f47f0d04e/part-000000.gz",
+          "sha256": "f527bb04fac63ee6d424ffe14239249f8be1185927272beef015826c0ea442a3",
+          "size": 21073196
+        }
+      ],
+      "sha256": "1a37bd91d3a11216ee4d2a74a6a70c28b044b99cef98b58500751e63dd3cd247",
+      "size": 58414800
+    },
+    "warehouse-assets/wasi-sdk/lib/libclang-cpp.so.21.1-wasi-sdk": {
+      "mode": 493,
+      "parts": [
+        {
+          "path": "4a6253d2919b8f5c3756524abc364daacb74d8f32caff14db1301d841756c87e/part-000000.gz",
+          "sha256": "64c3b2fee704df693450b7bac6352afc60da1e3d7e8c988ae18ce3d0d2dffd0b",
+          "size": 18695167
+        }
+      ],
+      "sha256": "bbc17f7bfda8d908759819183320cbe49fbc3599ee57d9a87e95df917b763b58",
+      "size": 61094048
+    }
+  },
+  "format": 1
+}

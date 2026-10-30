@@ -1,0 +1,53 @@
+[package]
+name = "prost-wkt-types"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+# Overrides the workspace Apache-2.0: this crate redistributes the BSD-3-Clause
+# schemas under proto/google/protobuf/.
+license = "Apache-2.0 AND BSD-3-Clause"
+repository.workspace = true
+description.workspace = true
+readme.workspace = true
+documentation.workspace = true
+rust-version.workspace = true
+
+[lib]
+doctest = false
+
+[package.metadata.docs.rs]
+# Build the docs with the schema features on so their trait impls are visible.
+features = ["schemars", "utoipa"]
+
+[features]
+default = ["std"]
+std = []
+vendored-protoc = ["protobuf-src"]
+vendored-protox = ["protox"]
+# Schema support for the well-known types; see the README.
+schemars = ["dep:schemars"]
+utoipa = ["dep:utoipa"]
+
+[dependencies]
+prost-wkt.workspace = true
+prost.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_derive.workspace = true
+chrono.workspace = true
+schemars = { version = "1.2.0", optional = true }
+# utoipa's default `macros` feature is load-bearing: utoipa 5.5 does not compile with
+# `default-features = false` (its builder code references macros-gated modules).
+utoipa = { version = "5", optional = true }
+
+[dev-dependencies]
+regex = "1"
+
+[build-dependencies]
+prost.workspace = true
+prost-types.workspace = true
+prost-build.workspace = true
+prost-wkt-build.workspace = true
+regex = "1.12.2"
+protobuf-src = { version = "2.1.0", optional = true }
+protox = { version = "0.9.1", optional = true }

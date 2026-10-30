@@ -1,0 +1,6 @@
+{
+  "crate": "cargo-llvm-cov",
+  "crate_sha256": "5e00647cc92940c4dd82249c480fe08fd3809767e89f056bcec46d8a7962ea5b",
+  "published_lock_sha256": "a2aa3c30f8038a315ea325abeed4a8535c820c23ef983391b6cd6f302b196377",
+  "version": "0.9.1"
+}

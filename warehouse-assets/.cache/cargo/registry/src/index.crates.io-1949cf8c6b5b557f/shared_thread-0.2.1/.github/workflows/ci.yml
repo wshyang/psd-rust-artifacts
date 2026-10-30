@@ -1,0 +1,37 @@
+name: tests
+
+on:
+  push:
+    branches:
+      - "*"
+    # not on tags
+  pull_request:
+
+env:
+  RUSTFLAGS: "-D warnings"
+  RUST_BACKTRACE: "1"
+
+jobs:
+  cargo_tests:
+    name: ${{ matrix.os }} ${{ matrix.rust_channel }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ["ubuntu-latest", "macOS-latest", "windows-latest"]
+        rust_channel:
+          - "stable"
+          - "beta"
+          - "nightly"
+          - "1.70" # MSRV
+          # The test MSRV is higher. See the comment in `test_is_finished_never_blocks`.
+          - "1.98"
+
+    steps:
+    - uses: actions/checkout@v4
+    - uses: dtolnay/rust-toolchain@master
+      with:
+        toolchain: ${{ matrix.rust_channel }}
+    - run: cargo build
+    - run: cargo test
+      if: matrix.rust_channel != 1.70

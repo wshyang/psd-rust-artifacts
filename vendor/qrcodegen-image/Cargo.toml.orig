@@ -1,0 +1,30 @@
+[package]
+name = "qrcodegen-image"
+version = "1.5.2"
+edition = "2024"
+authors = ["Cleo Rebert <cleo.rebert@gmail.com>"]
+rust-version = "1.88"
+readme = "README.md"
+license = "MIT"
+description = "Draw QR codes to a PNG canvas. Wrapper around the qrcodegen and image crates."
+repository = "https://github.com/constantoine/qrcodegen-image"
+homepage = "https://github.com/constantoine/qrcodegen-image"
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[features]
+base64 = ["dep:base64"]
+
+[dependencies]
+qrcodegen = "1.8"
+image = { version = "0.25", features = ["png"], default-features = false}
+base64 = { version = "0.22", optional = true }
+
+[dev-dependencies]
+criterion = { version = "0.8", features = ["html_reports"] }
+
+[[bench]]
+name = "benches"
+harness = false

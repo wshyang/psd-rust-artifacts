@@ -1,0 +1,747 @@
+use anyhow::Context;
+use cargo_deny::{
+    Path, PathBuf,
+    diag::{self, FileId, Files, Severity},
+    licenses::LicenseStore,
+    root_cfg::Target,
+};
+
+mod cfg;
+pub use cfg::ValidConfig;
+
+#[macro_export]
+macro_rules! clap_err {
+    ($kind:ident, $cmd:expr) => {
+        clap::Error::new(clap::error::ErrorKind::$kind).with_cmd($cmd)
+    };
+}
+
+#[macro_export]
+macro_rules! clap_err_invalid_value {
+    ($v:expr, $arg:expr, $cmd:expr) => {{
+        let mut err = clap::Error::new(clap::error::ErrorKind::ValueValidation).with_cmd($cmd);
+        err.insert(
+            clap::error::ContextKind::InvalidValue,
+            clap::error::ContextValue::String($v.to_owned()),
+        );
+        err.insert(
+            clap::error::ContextKind::InvalidArg,
+            clap::error::ContextValue::String(
+                $arg.map(ToString::to_string)
+                    .unwrap_or_else(|| "...".to_owned()),
+            ),
+        );
+        err
+    }};
+}
+
+#[macro_export]
+macro_rules! enum_args {
+    ($kind:ty : $parser:ident => { $($name:literal => $value:ident),*$(,)? }) => {
+        #[derive(Clone)]
+        struct $parser;
+
+        impl clap::builder::TypedValueParser for $parser {
+            type Value = $kind;
+
+            fn parse_ref(
+                &self,
+                cmd: &clap::Command,
+                arg: Option<&clap::Arg>,
+                value: &std::ffi::OsStr,
+            ) -> Result<Self::Value, clap::Error> {
+                let Some(v) = value.to_str() else {
+                    return Err($crate::clap_err!(InvalidUtf8, cmd));
+                };
+
+                let v = match v {
+                    $(
+                        $name => <$kind>::$value,
+                    )*
+                    _ => return Err($crate::clap_err_invalid_value!(v, arg, cmd))
+                };
+
+                Ok(v)
+            }
+
+            fn possible_values(
+                &self,
+            ) -> Option<Box<dyn Iterator<Item = clap::builder::PossibleValue> + '_>> {
+                Some(Box::new(
+                    [
+                        $(
+                            clap::builder::PossibleValue::new($name),
+                        )*
+                    ]
+                    .into_iter(),
+                ))
+            }
+        }
+    };
+}
+
+#[derive(Clone)]
+pub struct PathParser;
+
+impl clap::builder::TypedValueParser for PathParser {
+    type Value = crate::PathBuf;
+
+    fn parse_ref(
+        &self,
+        cmd: &clap::Command,
+        _arg: Option<&clap::Arg>,
+        value: &std::ffi::OsStr,
+    ) -> Result<Self::Value, clap::Error> {
+        let Some(p) = value.to_str() else {
+            return Err(clap_err!(InvalidUtf8, cmd));
+        };
+
+        Ok(crate::PathBuf::from(p.to_owned()))
+    }
+}
+
+pub(crate) fn load_license_store() -> Result<LicenseStore, anyhow::Error> {
+    log::debug!("loading license store...");
+    LicenseStore::from_cache()
+}
+
+pub(crate) fn current_dir_utf8() -> anyhow::Result<PathBuf> {
+    let current_dir =
+        std::env::current_dir().context("could not access current working directory")?;
+
+    let current_dir = PathBuf::from_path_buf(current_dir)
+        .map_err(|pb| anyhow::anyhow!("path '{}' is not utf-8", pb.display()))
+        .context("could not access current working directory")?;
+
+    Ok(current_dir)
+}
+
+fn single_target(cmd_targets: &[&'static str], cfg_targets: &[Target], f: impl FnOnce(&str)) {
+    if let Some(targ) = cmd_targets.first().filter(|_| cmd_targets.len() == 1) {
+        f(targ);
+    } else if let Some(targ) = cfg_targets
+        .first()
+        .filter(|_| cfg_targets.len() == 1 && cmd_targets.is_empty())
+    {
+        f(&targ.filter.value.to_string());
+    }
+}
+
+pub struct KrateContext {
+    pub manifest_path: PathBuf,
+    pub config_path: Option<PathBuf>,
+    pub metadata_path: Option<PathBuf>,
+    pub workspace: bool,
+    pub exclude: Vec<String>,
+    pub targets: Vec<&'static str>,
+    pub no_default_features: bool,
+    pub all_features: bool,
+    pub features: Vec<String>,
+    pub frozen: bool,
+    pub locked: bool,
+    pub offline: bool,
+    pub exclude_dev: bool,
+    pub exclude_unpublished: bool,
+}
+
+impl KrateContext {
+    pub fn get_config_path(&self) -> anyhow::Result<Option<PathBuf>> {
+        if let Some(config_path) = &self.config_path {
+            let current_dir = current_dir_utf8()?;
+            Ok(Some(Self::resolve_config_path(&current_dir, config_path)))
+        } else {
+            Ok(Self::default_config_path(&self.manifest_path))
+        }
+    }
+
+    fn resolve_config_path(current_dir: &Path, config_path: &Path) -> PathBuf {
+        if config_path.is_absolute() {
+            config_path.to_owned()
+        } else {
+            current_dir.join(config_path)
+        }
+    }
+
+    fn default_config_path(manifest_path: &Path) -> Option<PathBuf> {
+        let mut p = manifest_path.parent();
+
+        while let Some(parent) = p {
+            let mut config_path = parent.join("deny.toml");
+
+            if config_path.exists() {
+                return Some(config_path);
+            }
+
+            config_path.pop();
+            config_path.push(".deny.toml");
+
+            if config_path.exists() {
+                return Some(config_path);
+            }
+
+            config_path.pop();
+            config_path.push(".cargo/deny.toml");
+
+            if config_path.exists() {
+                return Some(config_path);
+            }
+
+            p = parent.parent();
+        }
+
+        None
+    }
+
+    pub fn get_local_exceptions_path(&self) -> Option<PathBuf> {
+        let mut p = self.manifest_path.parent();
+
+        while let Some(parent) = p {
+            let mut config_path = parent.join("deny.exceptions.toml");
+
+            if config_path.exists() {
+                return Some(config_path);
+            }
+
+            config_path.pop();
+            config_path.push(".deny.exceptions.toml");
+
+            if config_path.exists() {
+                return Some(config_path);
+            }
+
+            config_path.pop();
+            config_path.push(".cargo/deny.exceptions.toml");
+            if config_path.exists() {
+                return Some(config_path);
+            }
+
+            p = parent.parent();
+        }
+
+        None
+    }
+
+    #[inline]
+    pub fn fetch_krates(&self, cfg_targets: &[Target]) -> anyhow::Result<()> {
+        fetch(
+            MetadataOptions {
+                no_default_features: false,
+                all_features: false,
+                features: Vec::new(),
+                manifest_path: self.manifest_path.clone(),
+                frozen: self.frozen,
+                locked: self.locked,
+                offline: self.offline,
+            },
+            &self.targets,
+            cfg_targets,
+        )
+    }
+
+    pub fn gather_krates(
+        self,
+        cfg_targets: Vec<Target>,
+        cfg_excludes: Vec<String>,
+    ) -> Result<cargo_deny::Krates, anyhow::Error> {
+        log::info!("gathering crates for {}", self.manifest_path);
+        let start = std::time::Instant::now();
+
+        log::debug!("gathering crate metadata");
+        let metadata = if let Some(md) = self.metadata_path {
+            let data = std::fs::read_to_string(&md)
+                .with_context(|| format!("failed to read metadata JSON from {md}"))?;
+            serde_json::from_str(&data)
+                .with_context(|| format!("failed to deserialize metadata JSON from {md}"))?
+        } else {
+            Self::get_metadata(
+                MetadataOptions {
+                    no_default_features: self.no_default_features,
+                    all_features: self.all_features,
+                    features: self.features,
+                    manifest_path: self.manifest_path,
+                    frozen: self.frozen,
+                    locked: self.locked,
+                    offline: self.offline,
+                },
+                &self.targets,
+                &cfg_targets,
+            )?
+        };
+        log::debug!(
+            "gathered crate metadata in {}ms",
+            start.elapsed().as_millis()
+        );
+
+        use krates::{Builder, DepKind};
+
+        let mut gb = Builder::new();
+
+        // Use targets passed on the command line first, and fallback to config
+        // based targets otherwise
+        if !self.targets.is_empty() {
+            gb.include_targets(self.targets.into_iter().map(|t| (t, Vec::new())));
+        } else if !cfg_targets.is_empty() {
+            gb.include_targets(
+                cfg_targets
+                    .into_iter()
+                    .map(|targ| (targ.filter.value, targ.features)),
+            );
+        }
+
+        gb.ignore_kind(
+            DepKind::Dev,
+            if self.exclude_dev {
+                krates::Scope::All
+            } else {
+                krates::Scope::NonWorkspace
+            },
+        );
+        gb.workspace(self.workspace);
+
+        if !self.exclude.is_empty() || !cfg_excludes.is_empty() {
+            gb.exclude(
+                self.exclude
+                    .into_iter()
+                    .chain(cfg_excludes)
+                    .filter_map(|spec| match spec.parse() {
+                        Ok(spec) => Some(spec),
+                        Err(err) => {
+                            log::warn!("invalid pkg spec '{spec}': {err}");
+                            None
+                        }
+                    }),
+            );
+        }
+        if self.exclude_unpublished {
+            gb.include_workspace_crates(metadata.workspace_packages().iter().filter_map(
+                |package| match &package.publish {
+                    Some(registries) if registries.is_empty() => None,
+                    _ => Some(package.manifest_path.as_std_path()),
+                },
+            ));
+        }
+        // Attempt to open the crates.io index so that the feature sets for every
+        // crate in the graph are correct, however, don't consider it a hard failure
+        // if we can't for some reason, as the graph will _probably_ still be accurate
+        // as incorrect feature sets are not the norm by any means
+        // see https://github.com/rust-lang/cargo/issues/11319 for an example of
+        // what this can look like in practice if we don't have the index metadata
+        // to supplement/fix the cargo metadata
+        if let Err(err) = cargo_deny::krates_with_index(&mut gb, None, None) {
+            log::error!(
+                "failed to open the local crates.io index, feature sets for crates may not be correct: {err}"
+            );
+        }
+
+        let graph = gb.build_with_metadata(metadata, |filtered: krates::cm::Package| {
+            let name = filtered.name;
+            let vers = filtered.version;
+
+            if let Some(src) = filtered.source.filter(|src| !src.is_crates_io()) {
+                log::debug!("filtered {name} {vers} {src}");
+            } else {
+                log::debug!("filtered {name} {vers}");
+            }
+        });
+
+        if let Ok(krates) = &graph {
+            log::info!(
+                "gathered {} crates in {}ms",
+                krates.len(),
+                start.elapsed().as_millis()
+            );
+        }
+
+        Ok(graph?)
+    }
+
+    fn get_metadata(
+        opts: MetadataOptions,
+        targets: &[&'static str],
+        cfg_targets: &[Target],
+    ) -> Result<krates::cm::Metadata, anyhow::Error> {
+        let mut mdc = krates::Cmd::new();
+
+        if opts.no_default_features {
+            mdc.no_default_features();
+        }
+
+        if opts.all_features {
+            mdc.all_features();
+        }
+
+        mdc.features(opts.features)
+            .manifest_path(opts.manifest_path)
+            .lock_opts(krates::LockOptions {
+                frozen: opts.frozen,
+                locked: opts.locked,
+                offline: opts.offline,
+            });
+
+        single_target(targets, cfg_targets, |target| {
+            mdc.other_options(["--filter-platform".to_owned(), target.to_owned()]);
+        });
+
+        let mdc: krates::cm::MetadataCommand = mdc.into();
+        Ok(mdc.exec()?)
+    }
+}
+
+struct MetadataOptions {
+    no_default_features: bool,
+    all_features: bool,
+    features: Vec<String>,
+    manifest_path: PathBuf,
+    frozen: bool,
+    locked: bool,
+    offline: bool,
+}
+
+fn fetch(
+    opts: MetadataOptions,
+    cmd_targets: &[&'static str],
+    cfg_targets: &[cargo_deny::root_cfg::Target],
+) -> anyhow::Result<()> {
+    use anyhow::Context as _;
+    let mut cargo =
+        std::process::Command::new(std::env::var("CARGO").unwrap_or_else(|_ve| "cargo".to_owned()));
+
+    cargo.arg("fetch");
+    cargo.arg("--manifest-path");
+    cargo.arg(&opts.manifest_path);
+    if opts.frozen {
+        cargo.arg("--frozen");
+    }
+
+    if opts.locked {
+        cargo.arg("--locked");
+    }
+
+    if opts.offline {
+        cargo.arg("--offline");
+    }
+
+    single_target(cmd_targets, cfg_targets, |target| {
+        cargo.arg("--target");
+        cargo.arg(target);
+    });
+
+    cargo.stderr(std::process::Stdio::piped());
+    let output = cargo.output().context("failed to run cargo")?;
+    if output.status.success() {
+        Ok(())
+    } else {
+        anyhow::bail!(String::from_utf8(output.stderr).context("non-utf8 error output")?);
+    }
+}
+
+#[inline]
+pub fn log_level_to_severity(log_level: log::LevelFilter) -> Option<Severity> {
+    match log_level {
+        log::LevelFilter::Off => None,
+        log::LevelFilter::Error => Some(Severity::Error),
+        log::LevelFilter::Warn => Some(Severity::Warning),
+        log::LevelFilter::Info => Some(Severity::Note),
+        log::LevelFilter::Debug | log::LevelFilter::Trace => Some(Severity::Help),
+    }
+}
+
+use codespan_reporting::term::{self, termcolor::ColorChoice};
+use std::io::Write;
+
+fn color_to_choice(color: crate::Color, stream: impl std::io::IsTerminal) -> ColorChoice {
+    match color {
+        crate::Color::Auto => {
+            // The termcolor crate doesn't check the stream to see if it's a TTY
+            // which doesn't really fit with how the rest of the coloring works
+            if stream.is_terminal() {
+                ColorChoice::Auto
+            } else {
+                ColorChoice::Never
+            }
+        }
+        crate::Color::Always => ColorChoice::Always,
+        crate::Color::Never => ColorChoice::Never,
+    }
+}
+
+#[inline]
+pub fn should_colorize(color: crate::Color, stream: impl std::io::IsTerminal) -> bool {
+    match color {
+        crate::Color::Auto => stream.is_terminal(),
+        crate::Color::Always => true,
+        crate::Color::Never => false,
+    }
+}
+
+type CsDiag = codespan_reporting::diagnostic::Diagnostic<FileId>;
+
+pub struct Human<'a> {
+    stream: term::termcolor::StandardStream,
+    grapher: Option<diag::InclusionGrapher<'a>>,
+    config: term::Config,
+    feature_depth: Option<u32>,
+}
+
+pub enum StdioStream {
+    //Out(std::io::Stdout),
+    Err(std::io::Stderr),
+}
+
+impl StdioStream {
+    pub fn lock(&self) -> StdLock<'_> {
+        match self {
+            //Self::Out(o) => StdLock::Out(o.lock()),
+            Self::Err(o) => StdLock::Err(o.lock()),
+        }
+    }
+}
+
+pub struct Json<'a> {
+    stream: StdioStream,
+    grapher: Option<diag::InclusionGrapher<'a>>,
+}
+
+#[allow(clippy::large_enum_variant)]
+enum OutputFormat<'a> {
+    Human(Human<'a>),
+    Json(Json<'a>),
+    Sarif,
+}
+
+impl<'a> OutputFormat<'a> {
+    fn lock(&'a self, max_severity: Severity) -> OutputLock<'a, 'a> {
+        match self {
+            Self::Human(human) => OutputLock::Human(
+                human,
+                max_severity,
+                human.stream.lock(),
+                human.feature_depth,
+            ),
+            Self::Json(json) => OutputLock::Json(json, max_severity, json.stream.lock()),
+            Self::Sarif => OutputLock::Sarif,
+        }
+    }
+}
+
+pub enum StdLock<'a> {
+    Err(std::io::StderrLock<'a>),
+    //Out(std::io::StdoutLock<'a>),
+}
+
+impl Write for StdLock<'_> {
+    fn write(&mut self, d: &[u8]) -> std::io::Result<usize> {
+        match self {
+            Self::Err(stderr) => stderr.write(d),
+            //Self::Out(stdout) => stdout.write(d),
+        }
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        match self {
+            Self::Err(stderr) => stderr.flush(),
+            //Self::Out(stdout) => stdout.flush(),
+        }
+    }
+}
+
+pub enum OutputLock<'a, 'b> {
+    Human(
+        &'a Human<'a>,
+        Severity,
+        term::termcolor::StandardStreamLock<'b>,
+        Option<u32>,
+    ),
+    Json(&'a Json<'a>, Severity, StdLock<'b>),
+    Sarif,
+}
+
+impl OutputLock<'_, '_> {
+    pub fn print(&mut self, diag: CsDiag, files: &Files) {
+        match self {
+            Self::Human(cfg, max, l, _) => {
+                if diag.severity < *max {
+                    return;
+                }
+
+                let _ = term::emit_to_write_style(l, &cfg.config, files, &diag);
+            }
+            Self::Json(_cfg, max, w) => {
+                if diag.severity < *max {
+                    return;
+                }
+
+                let to_print = diag::cs_diag_to_json(diag, files);
+
+                use serde::Serialize;
+
+                let mut ser = serde_json::Serializer::new(w);
+                if to_print.serialize(&mut ser).is_ok() {
+                    let w = ser.into_inner();
+                    let _ = w.write(b"\n");
+                }
+            }
+            Self::Sarif => {} // SARIF collects diagnostics separately
+        }
+    }
+
+    pub fn print_krate_pack(&mut self, pack: cargo_deny::diag::Pack, files: &Files) {
+        let mut emitted = std::collections::BTreeSet::new();
+
+        match self {
+            Self::Human(cfg, max, l, fd) => {
+                for mut diag in pack {
+                    if diag.diag.severity < *max {
+                        continue;
+                    }
+
+                    if let Some(grapher) = &cfg.grapher {
+                        for gn in diag.graph_nodes {
+                            if emitted.contains(&gn.kid) {
+                                let krate =
+                                    &grapher.krates[grapher.krates.nid_for_kid(&gn.kid).unwrap()];
+                                diag.diag
+                                    .notes
+                                    .push(format!("{} v{} (*)", krate.name, krate.version));
+                            } else if let Ok(graph) = grapher.build_graph(
+                                &gn,
+                                if diag.with_features {
+                                    fd.unwrap_or(1) as usize
+                                } else {
+                                    0
+                                },
+                            ) {
+                                let graph_text = diag::write_graph_as_text(&graph);
+                                diag.diag.notes.push(graph_text);
+                                emitted.insert(gn.kid);
+                            }
+                        }
+                    }
+
+                    let _ = term::emit_to_write_style(l, &cfg.config, files, &diag.diag);
+                }
+            }
+            Self::Json(cfg, max, w) => {
+                for diag in pack {
+                    if diag.diag.severity < *max {
+                        continue;
+                    }
+
+                    let to_print = diag::diag_to_json(diag, files, cfg.grapher.as_ref());
+
+                    use serde::Serialize;
+
+                    let mut ser = serde_json::Serializer::new(&mut *w);
+                    if to_print.serialize(&mut ser).is_ok() {
+                        let w = ser.into_inner();
+                        let _ = w.write(b"\n");
+                    }
+                }
+            }
+            Self::Sarif => {} // SARIF collects diagnostics separately
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+pub struct LogContext {
+    pub format: crate::Format,
+    pub color: crate::Color,
+    pub log_level: log::LevelFilter,
+}
+
+pub struct DiagPrinter<'a> {
+    which: OutputFormat<'a>,
+    max_severity: Severity,
+}
+
+impl<'a> DiagPrinter<'a> {
+    pub fn new(
+        ctx: LogContext,
+        krates: Option<&'a cargo_deny::Krates>,
+        feature_depth: Option<u32>,
+    ) -> Option<Self> {
+        let max_severity = log_level_to_severity(ctx.log_level);
+
+        max_severity.map(|max_severity| match ctx.format {
+            crate::Format::Human => {
+                let stream = term::termcolor::StandardStream::stderr(color_to_choice(
+                    ctx.color,
+                    std::io::stderr(),
+                ));
+
+                Self {
+                    which: OutputFormat::Human(Human {
+                        stream,
+                        grapher: krates.map(diag::InclusionGrapher::new),
+                        config: cargo_deny::diag::codespan_config(),
+                        feature_depth,
+                    }),
+                    max_severity,
+                }
+            }
+            crate::Format::Json => Self {
+                which: OutputFormat::Json(Json {
+                    stream: StdioStream::Err(std::io::stderr()),
+                    grapher: krates.map(diag::InclusionGrapher::new),
+                }),
+                max_severity,
+            },
+            crate::Format::Sarif => Self {
+                which: OutputFormat::Sarif,
+                max_severity,
+            },
+        })
+    }
+
+    #[inline]
+    pub fn lock(&'a self) -> OutputLock<'a, 'a> {
+        self.which.lock(self.max_severity)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[inline]
+    fn temp_dir() -> tempfile::TempDir {
+        tempfile::tempdir().unwrap()
+    }
+
+    #[test]
+    fn test_resolve_config_path() {
+        let temp_dir = temp_dir();
+
+        let current_dir = PathBuf::from_path_buf(temp_dir.path().to_path_buf()).unwrap();
+        std::fs::File::create(current_dir.join("deny.toml")).unwrap();
+
+        let expected = current_dir.join("deny.toml");
+
+        let abs_path = current_dir.join("deny.toml");
+        let actual = KrateContext::resolve_config_path(&current_dir, &abs_path);
+        assert_eq!(actual, abs_path);
+
+        let rel_path = Path::new("./deny.toml");
+        let actual = KrateContext::resolve_config_path(&current_dir, rel_path);
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_default_config_path() {
+        let temp_dir = temp_dir();
+
+        let current_dir = PathBuf::from_path_buf(temp_dir.path().to_path_buf()).unwrap();
+        std::fs::File::create(current_dir.join("Cargo.toml")).unwrap();
+        let manifest_path = current_dir.join("Cargo.toml");
+
+        let actual = KrateContext::default_config_path(&manifest_path);
+        let expected = None;
+        assert_eq!(actual, expected);
+
+        std::fs::File::create(current_dir.join("deny.toml")).unwrap();
+        let actual = KrateContext::default_config_path(&manifest_path);
+        let expected = Some(current_dir.join("deny.toml"));
+        assert_eq!(actual, expected);
+    }
+}
